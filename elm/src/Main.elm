@@ -3,6 +3,7 @@ module Main exposing (main)
 import Array exposing (Array)
 import Browser
 import Browser.Navigation as Nav
+import CustomEvents exposing (onMouseDownWithButton, onMouseEnterWithButtons)
 import Html exposing (Html, div, h1, text, button, input)
 import Html.Attributes exposing (attribute, class, type_, style)
 import Html.Events exposing (onClick, onMouseDown, onMouseUp, onMouseLeave, onInput)
@@ -40,6 +41,8 @@ type alias Model =
     , autoRotating: Int
     , currentColor: String
     , palette: List String
+    , autoDrawing: Bool
+    , pinnedSegment: Maybe Int
     }
 
 
@@ -64,6 +67,8 @@ init _ url key =
             , autoRotating = 0
             , currentColor = "#000000"
             , palette = ["#53b9e9", "#fd6617", "#dd5875", "#8a75ad", "#fffc3f", "#ffffff", "#000000"]
+            , autoDrawing = False
+            , pinnedSegment = Nothing
             }
     in
     ( model, Cmd.none )
@@ -83,11 +88,17 @@ type Msg
     | Rotate Int
     | SetAutoRotation Int
     | SetCurrentColor String
+    | SetAutoDrawing Bool
+    | PinSegment (Maybe Int)
+    | SetRotation Int
+    | NoOp
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        NoOp -> ( model, Cmd.none )
+
         LinkClicked urlRequest ->
             case urlRequest of
                 Browser.Internal url ->
@@ -121,6 +132,11 @@ update msg model =
             , Cmd.none
             )
 
+        SetRotation rotation ->
+            ( { model | rotation = remainderBy verticalSegments <| rotation + verticalSegments }
+            , Cmd.none
+            )
+
         SetAutoRotation direction ->
             ( { model | autoRotating = direction }
             , Cmd.none
@@ -128,6 +144,16 @@ update msg model =
 
         SetCurrentColor color ->
             ( { model | currentColor = color }
+            , Cmd.none
+            )
+
+        SetAutoDrawing drawing ->
+            ( { model | autoDrawing = drawing }
+            , Cmd.none
+            )
+
+        PinSegment maybeSegment ->
+            ( { model | pinnedSegment = maybeSegment }
             , Cmd.none
             )
 
@@ -265,6 +291,20 @@ picture model =
                 , strokeWidth "0.1"
                 , SAttr.class "egg-area"
                 , onClick <| SetColor layerIndex visibleSegment model.currentColor
+                , onMouseDownWithButton <| \b ->
+                     if b == 0 then
+                        SetColor layerIndex visibleSegment model.currentColor
+                     else if b == 1 then
+                        PinSegment <| Just visibleSegment
+                     else
+                       NoOp
+                , onMouseEnterWithButtons <| \bs ->
+                    if bs == 1 && model.autoDrawing then
+                        SetColor layerIndex visibleSegment model.currentColor
+                    else if bs == 4 && Maybe.withDefault -1 model.pinnedSegment >= 0 then
+                        SetRotation <| Maybe.withDefault 0 model.pinnedSegment - segmentIndex
+                    else
+                        NoOp
                 ] []
 
         layerToShapes layerIndex pointsList = List.indexedMap
@@ -278,6 +318,9 @@ picture model =
         [ width "700"
         , viewBox "-350 -25 700 850"
         , SAttr.class "picture-egg"
+        , onMouseDown <| SetAutoDrawing True
+        , onMouseUp <| SetAutoDrawing False
+        , onMouseLeave <| SetAutoDrawing False
         ]
         areaShapes
 
