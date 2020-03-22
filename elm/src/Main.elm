@@ -1,11 +1,14 @@
 module Main exposing (main)
 
+import Array exposing (Array)
 import Browser
 import Browser.Navigation as Nav
-import Html exposing (Html, div, h1, text)
-import Html.Attributes exposing (attribute, class)
-import Svg exposing (circle, line, svg, polygon)
-import Svg.Attributes as SAttr exposing (cx, cy, height, r, stroke, fill, viewBox, width, x1, x2, y1, y2, points, strokeWidth)
+import Html exposing (Html, div, h1, text, button, input)
+import Html.Attributes exposing (attribute, class, type_, style)
+import Html.Events exposing (onClick, onMouseDown, onMouseUp, onMouseLeave, onInput)
+import Svg exposing (svg, polygon)
+import Svg.Attributes as SAttr exposing (stroke, fill, viewBox, width, points, strokeWidth)
+import Time
 import Url
 
 
@@ -32,6 +35,11 @@ main =
 type alias Model =
     { key : Nav.Key
     , url : Url.Url
+    , rotation: Int
+    , colors: Array String
+    , autoRotating: Int
+    , currentColor: String
+    , palette: List String
     }
 
 
@@ -44,10 +52,25 @@ type alias Area =
     , bottomRight: Point
     }
 
+
 init : () -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
 init _ url key =
-    ( Model key url, Cmd.none )
+    let
+        model =
+            { key = key
+            , url = url
+            , rotation = 0
+            , colors = initColorsArray
+            , autoRotating = 0
+            , currentColor = "#000000"
+            , palette = ["#53b9e9", "#fd6617", "#dd5875", "#8a75ad", "#fffc3f", "#ffffff", "#000000"]
+            }
+    in
+    ( model, Cmd.none )
 
+
+initColorsArray: Array String
+initColorsArray = Array.repeat (layersCount * verticalSegments) ""
 
 
 -- UPDATE
@@ -56,6 +79,10 @@ init _ url key =
 type Msg
     = LinkClicked Browser.UrlRequest
     | UrlChanged Url.Url
+    | SetColor Int Int String
+    | Rotate Int
+    | SetAutoRotation Int
+    | SetCurrentColor String
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -74,30 +101,52 @@ update msg model =
             , Cmd.none
             )
 
+        SetColor layer segment color ->
+            let
+                newPalette =
+                    if String.isEmpty color || List.member color model.palette then
+                        model.palette
+                    else
+                        color :: List.take (List.length model.palette - 1) model.palette
+            in
+            ( { model
+              | colors = Array.set ((layer * verticalSegments) + segment) color model.colors
+              , palette = newPalette
+              }
+            , Cmd.none
+            )
 
+        Rotate direction ->
+            ( { model | rotation = remainderBy verticalSegments <| model.rotation + verticalSegments + direction }
+            , Cmd.none
+            )
+
+        SetAutoRotation direction ->
+            ( { model | autoRotating = direction }
+            , Cmd.none
+            )
+
+        SetCurrentColor color ->
+            ( { model | currentColor = color }
+            , Cmd.none
+            )
 
 -- SUBSCRIPTIONS
 
 
 subscriptions : Model -> Sub Msg
-subscriptions _ =
-    Sub.none
+subscriptions model =
+    if model.autoRotating /= 0 then
+        Time.every 100.0 <| (\_ -> Rotate model.autoRotating)
+    else
+        Sub.none
 
 
 
 -- VIEW
 
-
-view : Model -> Browser.Document Msg
-view model =
-    { title = "Bezkontaktní Velikonoce"
-    , body =
-        [ div [ class "notranslate", attribute "translate" "no" ]
-            [ h1 [ class "site-title" ] [ text "Bezkontaktní Velikonoce" ]
-            , picture model
-            ]
-        ]
-    }
+eggColor: String
+eggColor = "#efb67f"
 
 
 verticalSegments : Int
@@ -121,13 +170,13 @@ layerBorders =
     [ ( 29, 0 ) -- 1
     , ( 105, 30 ) -- 2
     , ( 146, 60 ) -- 3
-    , ( 175, 90 ) -- 4
+    , ( 178, 90 ) -- 4
     , ( 207, 120 ) -- 5
     , ( 229, 150 ) -- 6
     , ( 251, 180 ) -- 7
-    , ( 265, 210 ) -- 8
+    , ( 268, 210 ) -- 8
     , ( 280, 240 ) -- 9
-    , ( 289, 270 ) -- 10
+    , ( 291, 270 ) -- 10
     , ( 301, 300 ) -- 11
     , ( 308, 330 ) -- 12
     , ( 315, 360 ) -- 13
@@ -139,7 +188,7 @@ layerBorders =
     , ( 315, 540 ) -- 19
     , ( 310, 570 ) -- 20
     , ( 300, 600 ) -- 21
-    , ( 285, 630 ) -- 22
+    , ( 287, 630 ) -- 22
     , ( 270, 660 ) -- 23
     , ( 248, 690 ) -- 24
     , ( 222, 720 ) -- 25
@@ -149,9 +198,13 @@ layerBorders =
     ]
 
 
-layerBorderPairs: List ( (Int, Int), (Int, Int) )
+layerBorderPairs : List ( (Int, Int), (Int, Int) )
 layerBorderPairs = List.map2 (\a b -> (a, b)) layerBorders
     <| Maybe.withDefault [] <| List.tail layerBorders
+
+
+layersCount : Int
+layersCount = List.length layerBorderPairs
 
 
 areas: List (List Area)
@@ -195,40 +248,85 @@ polygonPoints =
 
 
 picture : Model -> Html Msg
-picture _ =
+picture model =
     let
-        -- pointToLine ( x, y ) =
-        --     line
-        --         [ x1 <| String.fromInt -x
-        --         , y1 <| String.fromInt y
-        --         , x2 <| String.fromInt x
-        --         , y2 <| String.fromInt y
-        --         , stroke "black" ]
-        --         []
-
-        -- pointToDots ( x, y ) =
-        --     verticalCoefficients |> List.map (\c -> circle
-        --         [ r "1"
-        --         , cx <| String.fromInt <| round -( toFloat x * c)
-        --         , cy <| String.fromInt y ]
-        --         []
-        --         )
-
         areaToShape layerIndex segmentIndex polygonPointsStr  =
             let
-                fillStr = if remainderBy 2 (layerIndex + segmentIndex) == 0 then "yellow" else "black"
+                visibleSegment = remainderBy verticalSegments <| segmentIndex + verticalSegments + model.rotation
+                fillStr = Array.get ((layerIndex * verticalSegments) + visibleSegment) model.colors |> Maybe.withDefault ""
+                color = if String.isEmpty fillStr
+                    then eggColor
+                    else fillStr
             in
-            polygon [ points polygonPointsStr, fill fillStr, stroke "#888888", strokeWidth "0.1" ] []
+            polygon
+                [ points polygonPointsStr
+                , fill color
+                , stroke "#888888"
+                , strokeWidth "0.1"
+                , SAttr.class "egg-area"
+                , onClick <| SetColor layerIndex visibleSegment model.currentColor
+                ] []
 
-        layerToShapes layerIndex pointsList = List.indexedMap (\i a -> areaToShape layerIndex i a) pointsList
+        layerToShapes layerIndex pointsList = List.indexedMap
+            (\i a ->areaToShape layerIndex i a)
+            pointsList
 
 
         areaShapes = List.concat <| List.indexedMap layerToShapes polygonPoints
     in
     svg
         [ width "700"
-        , height "850"
         , viewBox "-350 -25 700 850"
         , SAttr.class "picture-egg"
         ]
         areaShapes
+
+palette : Model -> Html Msg
+palette model =
+    let
+        colorToItem color =
+            div
+                [ class "palette-color"
+                , onClick <| SetCurrentColor color
+                , style "background" color
+                ] []
+
+        eraseItem = div
+                [ class "palette-color"
+                , onClick <| SetCurrentColor ""
+                , style "background" "white"
+                ] [ text "☒" ]
+
+        chooseItem = input [ type_ "color", class "palette-select", onInput SetCurrentColor] []
+
+        colorItems = List.map colorToItem model.palette
+
+        selected = if String.isEmpty model.currentColor then eggColor else model.currentColor
+    in
+    div [ class "palette", style "background" selected ] ((eraseItem :: colorItems) ++ [chooseItem])
+
+
+view : Model -> Browser.Document Msg
+view model =
+    { title = "Bezkontaktní Velikonoce"
+    , body =
+        [ div [ class "notranslate", attribute "translate" "no" ]
+            [ h1 [ class "site-title" ] [ text "Bezkontaktní Velikonoce" ]
+            , div []
+                [ button
+                    [ onClick <| Rotate -1
+                    , onMouseDown <| SetAutoRotation -1
+                    , onMouseUp <| SetAutoRotation 0
+                    , onMouseLeave <| SetAutoRotation 0] [text "<-"]
+                , button
+                    [ onClick <| Rotate 1
+                    , onMouseDown <| SetAutoRotation 1
+                    , onMouseUp <| SetAutoRotation 0
+                    , onMouseLeave <| SetAutoRotation 0
+                    ] [text "->"]
+                ]
+            , palette model
+            , div [ class "picture-container" ] [picture model]
+            ]
+        ]
+    }
