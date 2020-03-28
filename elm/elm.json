@@ -13,6 +13,7 @@
             "elm/svg": "1.0.1",
             "elm/time": "1.0.0",
             "elm/url": "1.0.0",
+            "fredcy/elm-parseint": "2.0.1",
             "jasonliang512/elm-heroicons": "1.0.3"
         },
         "indirect": {

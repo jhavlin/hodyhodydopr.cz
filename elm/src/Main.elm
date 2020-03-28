@@ -9,6 +9,7 @@ import Heroicons.Solid as HIcons
 import Html exposing (Html, a, div, input, text)
 import Html.Attributes exposing (attribute, class, href, id, style, type_)
 import Html.Events exposing (onClick, onInput, onMouseDown, onMouseLeave, onMouseUp)
+import ParseInt exposing (parseIntHex, toHex)
 import Svg exposing (polygon, rect, svg)
 import Svg.Attributes as SAttr exposing (fill, height, points, stroke, strokeWidth, viewBox, width, x, y)
 import Url
@@ -265,6 +266,43 @@ eggColor =
     "#efb67f"
 
 
+adjustColor : String -> Float -> String
+adjustColor hexColor coefficient =
+    let
+        limit n =
+            min 255 <| max 0 <| n
+
+        asHex n =
+            String.padLeft 2 '0' <| toHex n
+
+        clr =
+            if String.length hexColor /= 7 then
+                eggColor
+
+            else
+                hexColor
+
+        origR =
+            toFloat <| Result.withDefault 0 <| parseIntHex <| String.slice 1 3 clr
+
+        origG =
+            toFloat <| Result.withDefault 0 <| parseIntHex <| String.slice 3 5 clr
+
+        origB =
+            toFloat <| Result.withDefault 0 <| parseIntHex <| String.slice 5 7 clr
+
+        newR =
+            limit <| round <| origR * coefficient
+
+        newG =
+            limit <| round <| origG * coefficient
+
+        newB =
+            limit <| round <| origB * coefficient
+    in
+    String.concat [ "#", asHex newR, asHex newG, asHex newB ]
+
+
 picture : Model -> Html Msg
 picture model =
     let
@@ -276,12 +314,15 @@ picture model =
                 fillStr =
                     Array.get ((layerIndex * model.egg.verticalSegments) + visibleSegment) model.colors |> Maybe.withDefault ""
 
-                color =
+                baseColor =
                     if String.isEmpty fillStr then
                         eggColor
 
                     else
                         fillStr
+
+                color =
+                    adjustColor baseColor <| 0.6 + (toFloat segmentIndex / toFloat model.egg.verticalSegments)
             in
             polygon
                 [ points polygonPointsStr
@@ -342,13 +383,13 @@ rotateBar model =
             let
                 fillColor =
                     if 0 == remainderBy model.egg.verticalSegments (model.rotation + index + model.egg.verticalSegments - (model.egg.verticalSegments // 4)) then
-                        "black"
+                        "#000000"
 
                     else if 0 == remainderBy 8 (model.rotation + index) then
-                        "gray"
+                        "#888888"
 
                     else
-                        "white"
+                        "#FFFFFF"
             in
             { rectX = c1 * 200
             , rectWidth = (c2 - c1) * 200
@@ -366,13 +407,16 @@ rotateBar model =
             let
                 visibleSegment =
                     toVisibleSegment model index
+
+                color =
+                    adjustColor fillColor <| 0.7 + (toFloat index / toFloat model.egg.verticalSegments)
             in
             rect
                 [ x <| String.fromFloat rectX
                 , y <| "-18"
                 , width <| String.fromFloat rectWidth
                 , height <| "36"
-                , fill fillColor
+                , fill color
                 , stroke "gray"
                 , strokeWidth "1"
                 , attribute "data-segment-index" <| String.fromInt index
