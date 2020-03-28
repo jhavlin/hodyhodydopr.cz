@@ -8,9 +8,8 @@ import Heroicons.Solid as HIcons
 import Html exposing (Html, a, div, h1, input, text)
 import Html.Attributes exposing (attribute, class, href, style, type_)
 import Html.Events exposing (onClick, onInput, onMouseDown, onMouseLeave, onMouseUp)
-import Svg exposing (polygon, svg)
-import Svg.Attributes as SAttr exposing (fill, points, stroke, strokeWidth, viewBox, width)
-import Time
+import Svg exposing (polygon, rect, svg)
+import Svg.Attributes as SAttr exposing (fill, height, points, stroke, strokeWidth, viewBox, width, x, y)
 import Url
 
 
@@ -39,7 +38,7 @@ type alias Model =
     , url : Url.Url
     , rotation : Int
     , colors : Array String
-    , autoRotating : Int
+    , rotating : Bool
     , currentColor : String
     , palette : List String
     , autoDrawing : Bool
@@ -76,7 +75,7 @@ init _ url key =
             , url = url
             , rotation = 0
             , colors = initColorsArray
-            , autoRotating = 0
+            , rotating = False
             , currentColor = "#000000"
             , palette = [ "#53b9e9", "#fd6617", "#dd5875", "#8a75ad", "#fffc3f", "#ffffff", "#000000" ]
             , autoDrawing = False
@@ -101,7 +100,7 @@ type Msg
     | UrlChanged Url.Url
     | SetColor Int Int String
     | Rotate Int
-    | SetAutoRotation Int
+    | SetRotating Bool
     | SetCurrentColor String
     | SetAutoDrawing Bool
     | PinSegment (Maybe Int)
@@ -154,8 +153,8 @@ update msg model =
             , Cmd.none
             )
 
-        SetAutoRotation direction ->
-            ( { model | autoRotating = direction }
+        SetRotating rotating ->
+            ( { model | rotating = rotating }
             , Cmd.none
             )
 
@@ -181,11 +180,7 @@ update msg model =
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    if model.autoRotating /= 0 then
-        Time.every 100.0 <| \_ -> Rotate model.autoRotating
-
-    else
-        Sub.none
+    Sub.none
 
 
 
@@ -373,6 +368,74 @@ picture model =
         areaShapes
 
 
+rotateBar : Model -> Html Msg
+rotateBar model =
+    let
+        coefficientsToRectPosition index ( c1, c2 ) =
+            let
+                fillColor =
+                    if 0 == remainderBy verticalSegments (model.rotation + index + verticalSegments - (verticalSegments // 4)) then
+                        "black"
+
+                    else if 0 == remainderBy 8 (model.rotation + index) then
+                        "gray"
+
+                    else
+                        "white"
+            in
+            { rectX = c1 * 200
+            , rectWidth = (c2 - c1) * 200
+            , fillColor = fillColor
+            , index = index
+            }
+
+        rectPositions =
+            List.indexedMap coefficientsToRectPosition verticalCoefficientPairs
+
+        validRectPositions =
+            List.filter (\i -> i.rectWidth > 1) rectPositions
+
+        positionToRect { rectX, rectWidth, fillColor, index } =
+            let
+                visibleSegment =
+                    remainderBy verticalSegments <| index + verticalSegments + model.rotation
+            in
+            rect
+                [ x <| String.fromFloat rectX
+                , y <| String.fromFloat <| -18 + (rectWidth / 3)
+                , width <| String.fromFloat rectWidth
+                , height <| "36"
+                , fill fillColor
+                , stroke "gray"
+                , strokeWidth "1"
+                , onMouseDown <| PinSegment <| Just visibleSegment
+                , onMouseEnterWithButtons <|
+                    \b ->
+                        if b > 0 && Maybe.withDefault -1 model.pinnedSegment >= 0 then
+                            SetRotation <| Maybe.withDefault 0 model.pinnedSegment - index
+
+                        else
+                            NoOp
+                ]
+                []
+
+        rects =
+            List.map positionToRect validRectPositions
+
+        bar =
+            svg
+                [ width "400"
+                , viewBox "-200 -25 400 50"
+                , SAttr.class "rotate-bar-svg"
+                , onMouseDown <| SetRotating True
+                , onMouseUp <| SetRotating False
+                , onMouseLeave <| SetRotating False
+                ]
+                rects
+    in
+    div [ class "rotate-bar controls-width" ] [ bar ]
+
+
 palette : Model -> Html Msg
 palette model =
     let
@@ -446,7 +509,7 @@ viewMainMenu model =
             a [ href "#", class "main-menu-item" ]
                 [ HIcons.share [ SAttr.class "main-menu-item-icon" ] ]
     in
-    div [ class "main-menu-inner" ]
+    div [ class "main-menu-inner controls-width" ]
         [ infoItem, listItem, editItem, shareItem ]
 
 
@@ -458,21 +521,8 @@ viewEdit : Model -> Html Msg
 viewEdit model =
     div [ class "view-edit notranslate", attribute "translate" "no" ]
         [ div [ class "picture-container base-width" ] [ div [ class "picture-absolute" ] [ picture model ] ]
+        , rotateBar model
         , palette model
-
-        -- , div []
-        --     [ button
-        --         [ onClick <| Rotate -1
-        --         , onMouseDown <| SetAutoRotation -1
-        --         , onMouseUp <| SetAutoRotation 0
-        --         , onMouseLeave <| SetAutoRotation 0] [text "<-"]
-        --     , button
-        --         [ onClick <| Rotate 1
-        --         , onMouseDown <| SetAutoRotation 1
-        --         , onMouseUp <| SetAutoRotation 0
-        --         , onMouseLeave <| SetAutoRotation 0
-        --         ] [text "->"]
-        --     ]
         ]
 
 
