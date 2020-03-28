@@ -457,7 +457,7 @@ viewMainMenu model =
 viewEdit : Model -> Html Msg
 viewEdit model =
     div [ class "view-edit notranslate", attribute "translate" "no" ]
-        [ div [ class "picture-container base-width" ] [ picture model ]
+        [ div [ class "picture-container base-width" ] [ div [ class "picture-absolute" ] [ picture model ] ]
         , palette model
 
         -- , div []
