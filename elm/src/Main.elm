@@ -4,8 +4,9 @@ import Array exposing (Array)
 import Browser
 import Browser.Navigation as Nav
 import CustomEvents exposing (onMouseDownWithButton, onMouseEnterWithButtons)
-import Html exposing (Html, button, div, h1, input, text)
-import Html.Attributes exposing (attribute, class, style, type_)
+import Heroicons.Solid as HIcons
+import Html exposing (Html, a, div, h1, input, text)
+import Html.Attributes exposing (attribute, class, href, style, type_)
 import Html.Events exposing (onClick, onInput, onMouseDown, onMouseLeave, onMouseUp)
 import Svg exposing (polygon, svg)
 import Svg.Attributes as SAttr exposing (fill, points, stroke, strokeWidth, viewBox, width)
@@ -428,7 +429,29 @@ viewMainArea model =
 
 viewMainMenu : Model -> Html Msg
 viewMainMenu model =
-    div [ class "main-menu" ] [ text "Ahoj menu" ]
+    let
+        infoItem =
+            a [ href "#", class "main-menu-item" ]
+                [ HIcons.informationCircle [ SAttr.class "main-menu-item-icon" ] ]
+
+        listItem =
+            a [ href "#", class "main-menu-item" ]
+                [ HIcons.folder [ SAttr.class "main-menu-item-icon" ] ]
+
+        editItem =
+            a [ href "#", class "main-menu-item selected" ]
+                [ HIcons.pencil [ SAttr.class "main-menu-item-icon selected" ] ]
+
+        shareItem =
+            a [ href "#", class "main-menu-item" ]
+                [ HIcons.share [ SAttr.class "main-menu-item-icon" ] ]
+    in
+    div [ class "main-menu-inner" ]
+        [ infoItem, listItem, editItem, shareItem ]
+
+
+
+--     [ infoItem, listItem, editItem, shareItem ]
 
 
 viewEdit : Model -> Html Msg

@@ -18,8 +18,34 @@ div.main-area {
 }
 
 div.main-menu {
-    flex: 0 0 auto;
     background: var(--easter-green);
+}
+
+div.main-menu-inner {
+    background: var(--easter-green);
+    display: flex;
+    margin: 0.25rem auto;
+    max-width: 400px;
+}
+
+.main-menu-item {
+    flex: 1 0 auto;
+    text-align: center;
+    margin: 0 0.2rem;
+}
+.main-menu-item:hover {
+    background: rgba(255, 255, 255, 0.25);
+}
+.main-menu-item.selected {
+    background: white;
+}
+
+.main-menu-item-icon {
+    width: 1.75rem;
+    color: white;
+}
+.main-menu-item-icon.selected {
+    color: var(--easter-green);
 }
 
 .base-width {
