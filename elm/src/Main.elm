@@ -4,11 +4,12 @@ import Array exposing (Array)
 import Browser
 import Browser.Navigation as Nav
 import CustomEvents exposing (onMouseDownWithButton, onMouseEnterWithButtons)
-import Eggs exposing (Egg, sd)
+import Eggs exposing (Egg)
 import Heroicons.Solid as HIcons
 import Html exposing (Html, a, div, input, text)
 import Html.Attributes exposing (attribute, class, href, id, style, type_)
 import Html.Events exposing (onClick, onInput, onMouseDown, onMouseLeave, onMouseUp)
+import Html.Lazy as Lazy
 import ParseInt exposing (parseIntHex, toHex)
 import Svg exposing (polygon, rect, svg)
 import Svg.Attributes as SAttr exposing (fill, height, points, stroke, strokeWidth, viewBox, width, x, y)
@@ -77,7 +78,7 @@ init : () -> Url.Url -> Nav.Key -> ( Model, Cmd msg )
 init _ url key =
     let
         egg =
-            Eggs.hd
+            Eggs.sd
 
         model =
             { key = key
@@ -101,9 +102,9 @@ initColorsArray egg =
     Array.repeat (egg.layersCount * egg.verticalSegments) ""
 
 
-toVisibleSegment : Model -> Int -> Int
-toVisibleSegment model renderedSegmentIndex =
-    remainderBy model.egg.verticalSegments <| renderedSegmentIndex + model.egg.verticalSegments + model.rotation
+toVisibleSegment : Egg -> Int -> Int -> Int
+toVisibleSegment egg rotation renderedSegmentIndex =
+    remainderBy egg.verticalSegments <| renderedSegmentIndex + egg.verticalSegments + rotation
 
 
 
@@ -114,7 +115,6 @@ type Msg
     = LinkClicked Browser.UrlRequest
     | UrlChanged Url.Url
     | SetColor Int Int String
-    | Rotate Int
     | SetRotating Bool
     | SetCurrentColor String
     | SetAutoDrawing Bool
@@ -122,6 +122,7 @@ type Msg
     | SetRotation Int
     | RotateBarTouchStarted Int
     | RotateBarTouchMoved Int
+    | RotateBarMouseEnteredSegment Int Int
     | EggTouchStarted ( Int, Int )
     | EggTouchMoved ( Int, Int )
     | NoOp
@@ -164,11 +165,6 @@ update msg model =
             , Cmd.none
             )
 
-        Rotate direction ->
-            ( { model | rotation = remainderBy model.egg.verticalSegments <| model.rotation + model.egg.verticalSegments + direction }
-            , Cmd.none
-            )
-
         SetRotation rotation ->
             ( { model | rotation = remainderBy model.egg.verticalSegments <| rotation + model.egg.verticalSegments }
             , Cmd.none
@@ -197,7 +193,7 @@ update msg model =
         RotateBarTouchStarted segment ->
             let
                 visibleSegment =
-                    toVisibleSegment model segment
+                    toVisibleSegment model.egg model.rotation segment
             in
             ( { model
                 | pinnedSegment = Just visibleSegment
@@ -219,10 +215,18 @@ update msg model =
             , Cmd.none
             )
 
+        RotateBarMouseEnteredSegment index buttons ->
+            if buttons > 0 && Maybe.withDefault -1 model.pinnedSegment >= 0 then
+                ( { model | rotation = Maybe.withDefault 0 model.pinnedSegment - index }, Cmd.none )
+
+            else
+                ( model, Cmd.none)
+
+
         EggTouchStarted ( layer, segment ) ->
             let
                 visibleSegment =
-                    toVisibleSegment model segment
+                    toVisibleSegment model.egg model.rotation segment
             in
             ( { model
                 | colors = Array.set ((layer * model.egg.verticalSegments) + visibleSegment) model.currentColor model.colors
@@ -234,7 +238,7 @@ update msg model =
         EggTouchMoved ( layer, segment ) ->
             let
                 visibleSegment =
-                    toVisibleSegment model segment
+                    toVisibleSegment model.egg model.rotation segment
             in
             ( { model
                 | colors = Array.set ((layer * model.egg.verticalSegments) + visibleSegment) model.currentColor model.colors
@@ -310,7 +314,7 @@ picture model =
         areaToShape layerIndex segmentIndex polygonPointsStr =
             let
                 visibleSegment =
-                    toVisibleSegment model segmentIndex
+                    toVisibleSegment model.egg model.rotation segmentIndex
 
                 fillStr =
                     Array.get ((layerIndex * model.egg.verticalSegments) + visibleSegment) model.colors |> Maybe.withDefault ""
@@ -377,16 +381,16 @@ picture model =
         areaShapes
 
 
-rotateBar : Model -> Html Msg
-rotateBar model =
+rotateBarView : Egg -> Int -> Html Msg
+rotateBarView egg rotation =
     let
         coefficientsToRectPosition index ( c1, c2 ) =
             let
                 fillColor =
-                    if 0 == remainderBy model.egg.verticalSegments (model.rotation + index + model.egg.verticalSegments - (model.egg.verticalSegments // 4)) then
+                    if 0 == remainderBy egg.verticalSegments (rotation + index + egg.verticalSegments - (egg.verticalSegments // 4)) then
                         "#000000"
 
-                    else if 0 == remainderBy 8 (model.rotation + index) then
+                    else if 0 == remainderBy 8 (rotation + index) then
                         "#888888"
 
                     else
@@ -399,7 +403,7 @@ rotateBar model =
             }
 
         rectPositions =
-            List.indexedMap coefficientsToRectPosition model.egg.verticalCoefficientPairs
+            List.indexedMap coefficientsToRectPosition egg.verticalCoefficientPairs
 
         validRectPositions =
             List.filter (\i -> i.rectWidth > 1) rectPositions
@@ -407,10 +411,10 @@ rotateBar model =
         positionToRect { rectX, rectWidth, fillColor, index } =
             let
                 visibleSegment =
-                    toVisibleSegment model index
+                    toVisibleSegment egg rotation index
 
                 color =
-                    adjustColor fillColor <| 0.7 + (toFloat index / toFloat model.egg.verticalSegments)
+                    adjustColor fillColor <| 0.7 + (toFloat index / toFloat egg.verticalSegments)
             in
             rect
                 [ x <| String.fromFloat rectX
@@ -422,13 +426,7 @@ rotateBar model =
                 , strokeWidth "1"
                 , attribute "data-segment-index" <| String.fromInt index
                 , onMouseDown <| PinSegment <| Just visibleSegment
-                , onMouseEnterWithButtons <|
-                    \b ->
-                        if b > 0 && Maybe.withDefault -1 model.pinnedSegment >= 0 then
-                            SetRotation <| Maybe.withDefault 0 model.pinnedSegment - index
-
-                        else
-                            NoOp
+                , onMouseEnterWithButtons <| RotateBarMouseEnteredSegment index
                 ]
                 []
 
@@ -453,8 +451,8 @@ rotateBar model =
         [ bar ]
 
 
-paletteView : Model -> Html Msg
-paletteView model =
+paletteView : String -> List String -> Html Msg
+paletteView currentColor palette =
     let
         colorToItem color =
             div
@@ -476,14 +474,14 @@ paletteView model =
             input [ type_ "color", class "palette-select", onInput SetCurrentColor ] []
 
         colorItems =
-            List.map colorToItem model.palette
+            List.map colorToItem palette
 
         selected =
-            if String.isEmpty model.currentColor then
+            if String.isEmpty currentColor then
                 eggColor
 
             else
-                model.currentColor
+                currentColor
     in
     div [ class "palette-outer", style "background" selected ]
         [ div [ class "palette-inner base-width" ] ((eraseItem :: colorItems) ++ [ chooseItem ])
@@ -538,8 +536,8 @@ viewEdit : Model -> Html Msg
 viewEdit model =
     div [ class "view-edit notranslate", attribute "translate" "no" ]
         [ div [ class "picture-container base-width" ] [ div [ class "picture-absolute" ] [ picture model ] ]
-        , rotateBar model
-        , paletteView model
+        , Lazy.lazy2 rotateBarView model.egg model.rotation
+        , Lazy.lazy2 paletteView model.currentColor model.palette
         ]
 
 
