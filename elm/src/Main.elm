@@ -126,6 +126,16 @@ type Msg
     | EggTouchMoved ( Int, Int )
     | NoOp
 
+updatePalette : String -> List String -> List String
+updatePalette color palette =
+    if String.isEmpty color then
+        palette
+
+    else if List.member color palette then
+        color :: List.filter (\c -> c /= color) palette
+
+    else
+        color :: List.take (List.length palette - 1) palette
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
@@ -147,20 +157,9 @@ update msg model =
             )
 
         SetColor layer segment color ->
-            let
-                newPalette =
-                    if String.isEmpty color then
-                        model.palette
-
-                    else if List.member color model.palette then
-                        color :: List.filter (\c -> c /= color) model.palette
-
-                    else
-                        color :: List.take (List.length model.palette - 1) model.palette
-            in
             ( { model
                 | colors = Array.set ((layer * model.egg.verticalSegments) + segment) color model.colors
-                , palette = newPalette
+                , palette = updatePalette color model.palette
               }
             , Cmd.none
             )
@@ -227,6 +226,7 @@ update msg model =
             in
             ( { model
                 | colors = Array.set ((layer * model.egg.verticalSegments) + visibleSegment) model.currentColor model.colors
+                , palette = updatePalette model.currentColor model.palette
               }
             , Cmd.none
             )
@@ -238,6 +238,7 @@ update msg model =
             in
             ( { model
                 | colors = Array.set ((layer * model.egg.verticalSegments) + visibleSegment) model.currentColor model.colors
+                , palette = updatePalette model.currentColor model.palette
               }
             , Cmd.none
             )
@@ -452,8 +453,8 @@ rotateBar model =
         [ bar ]
 
 
-palette : Model -> Html Msg
-palette model =
+paletteView : Model -> Html Msg
+paletteView model =
     let
         colorToItem color =
             div
@@ -538,7 +539,7 @@ viewEdit model =
     div [ class "view-edit notranslate", attribute "translate" "no" ]
         [ div [ class "picture-container base-width" ] [ div [ class "picture-absolute" ] [ picture model ] ]
         , rotateBar model
-        , palette model
+        , paletteView model
         ]
 
 
