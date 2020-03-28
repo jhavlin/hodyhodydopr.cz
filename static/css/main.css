@@ -60,7 +60,7 @@ div.main-menu-inner {
     display: flex;
     flex-direction: column;
     align-items: center;
-    background: radial-gradient(circle at 105% -5%, white 0%,yellow 15%, transparent 17%, transparent),
+    background: /* radial-gradient(circle at 105% -5%, white 0%, white 2%, yellow 15%, transparent 17%, transparent),*/
                 linear-gradient(to top, var(--easter-green) 10%, transparent 30%, transparent 100%),
                 linear-gradient(to bottom, rgb(113, 204, 246) 5%, transparent 40%, transparent 100%);
 }

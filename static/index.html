@@ -18,8 +18,61 @@
 </head>
 <body>
     <script type="text/javascript">
-        const app = Elm.Main.init({
+
+        let app;
+
+        function handleRotateBarTouchEvent(evt, port) {
+            const el = document.elementFromPoint(evt.touches[0].clientX, evt.touches[0].clientY);
+            if (el) {
+                const segment = el.getAttribute('data-segment-index');
+                if (segment) {
+                    port.send(parseInt(segment));
+                }
+            }
+        }
+
+        function handleRotateBarTouchStart(evt) {
+            handleRotateBarTouchEvent(evt, app.ports.rotateBarTouchStarted);
+        }
+
+        function handleRotateBarTouchMove(evt) {
+            handleRotateBarTouchEvent(evt, app.ports.rotateBarTouchMoved);
+        }
+
+        function handleEggTouchEvent(evt, port) {
+            const el = document.elementFromPoint(evt.touches[0].clientX, evt.touches[0].clientY);
+            if (el) {
+                const layer = el.getAttribute('data-layer-index');
+                const segment = el.getAttribute('data-segment-index');
+                if (layer && segment) {
+                    port.send([parseInt(layer), parseInt(segment)]);
+                }
+            }
+        }
+
+        function handleEggTouchStart(evt) {
+            handleEggTouchEvent(evt, app.ports.eggTouchStarted)
+        }
+
+        function handleEggTouchMove(evt) {
+            handleEggTouchEvent(evt, app.ports.eggTouchMoved)
+        }
+
+        app = Elm.Main.init({
             node: document,
+        });
+
+        app.ports.initTouch.subscribe(function(data) {
+            const rotateBar = document.getElementById('rotate-bar');
+            if (rotateBar) {
+                rotateBar.addEventListener('touchstart', handleRotateBarTouchStart);
+                rotateBar.addEventListener('touchmove', handleRotateBarTouchMove);
+            }
+            const pictureEgg = document.getElementById('picture-egg');
+            if (pictureEgg) {
+                pictureEgg.addEventListener('touchstart', handleEggTouchStart);
+                pictureEgg.addEventListener('touchmove', handleEggTouchMove);
+            }
         });
     </script>
 </body>

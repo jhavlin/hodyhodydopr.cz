@@ -1,16 +1,31 @@
-module Main exposing (main)
+port module Main exposing (main)
 
 import Array exposing (Array)
 import Browser
 import Browser.Navigation as Nav
 import CustomEvents exposing (onMouseDownWithButton, onMouseEnterWithButtons)
 import Heroicons.Solid as HIcons
-import Html exposing (Html, a, div, h1, input, text)
-import Html.Attributes exposing (attribute, class, href, style, type_)
+import Html exposing (Html, a, div, input, text)
+import Html.Attributes exposing (attribute, class, href, id, style, type_)
 import Html.Events exposing (onClick, onInput, onMouseDown, onMouseLeave, onMouseUp)
 import Svg exposing (polygon, rect, svg)
 import Svg.Attributes as SAttr exposing (fill, height, points, stroke, strokeWidth, viewBox, width, x, y)
 import Url
+
+
+port initTouch : () -> Cmd msg
+
+
+port rotateBarTouchStarted : (Int -> msg) -> Sub msg
+
+
+port rotateBarTouchMoved : (Int -> msg) -> Sub msg
+
+
+port eggTouchStarted : (( Int, Int ) -> msg) -> Sub msg
+
+
+port eggTouchMoved : (( Int, Int ) -> msg) -> Sub msg
 
 
 
@@ -83,12 +98,17 @@ init _ url key =
             , viewMode = Edit
             }
     in
-    ( model, Cmd.none )
+    ( model, initTouch () )
 
 
 initColorsArray : Array String
 initColorsArray =
     Array.repeat (layersCount * verticalSegments) ""
+
+
+toVisibleSegment : Model -> Int -> Int
+toVisibleSegment model renderedSegmentIndex =
+    remainderBy verticalSegments <| renderedSegmentIndex + verticalSegments + model.rotation
 
 
 
@@ -105,6 +125,10 @@ type Msg
     | SetAutoDrawing Bool
     | PinSegment (Maybe Int)
     | SetRotation Int
+    | RotateBarTouchStarted Int
+    | RotateBarTouchMoved Int
+    | EggTouchStarted ( Int, Int )
+    | EggTouchMoved ( Int, Int )
     | NoOp
 
 
@@ -173,6 +197,49 @@ update msg model =
             , Cmd.none
             )
 
+        RotateBarTouchStarted segment ->
+            let
+                visibleSegment =
+                    toVisibleSegment model segment
+            in
+            ( { model
+                | pinnedSegment = Just visibleSegment
+              }
+            , Cmd.none
+            )
+
+        RotateBarTouchMoved segment ->
+            let
+                newRotation = case model.pinnedSegment of
+                    Just pinned -> remainderBy verticalSegments <| verticalSegments + pinned - segment
+                    Nothing -> model.rotation
+            in
+            ( { model | rotation = newRotation }
+            , Cmd.none
+            )
+
+        EggTouchStarted ( layer, segment ) ->
+            let
+                visibleSegment =
+                    toVisibleSegment model segment
+            in
+            ( { model
+                | colors = Array.set ((layer * verticalSegments) + visibleSegment) model.currentColor model.colors
+              }
+            , Cmd.none
+            )
+
+        EggTouchMoved ( layer, segment ) ->
+            let
+                visibleSegment =
+                    toVisibleSegment model segment
+            in
+            ( { model
+                | colors = Array.set ((layer * verticalSegments) + visibleSegment) model.currentColor model.colors
+              }
+            , Cmd.none
+            )
+
 
 
 -- SUBSCRIPTIONS
@@ -180,7 +247,12 @@ update msg model =
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    Sub.none
+    Sub.batch
+        [ eggTouchStarted EggTouchStarted
+        , eggTouchMoved EggTouchMoved
+        , rotateBarTouchStarted RotateBarTouchStarted
+        , rotateBarTouchMoved RotateBarTouchMoved
+        ]
 
 
 
@@ -307,7 +379,7 @@ picture model =
         areaToShape layerIndex segmentIndex polygonPointsStr =
             let
                 visibleSegment =
-                    remainderBy verticalSegments <| segmentIndex + verticalSegments + model.rotation
+                    toVisibleSegment model segmentIndex
 
                 fillStr =
                     Array.get ((layerIndex * verticalSegments) + visibleSegment) model.colors |> Maybe.withDefault ""
@@ -325,6 +397,8 @@ picture model =
                 , stroke "#888888"
                 , strokeWidth "0.1"
                 , SAttr.class "egg-area"
+                , attribute "data-layer-index" <| String.fromInt layerIndex
+                , attribute "data-segment-index" <| String.fromInt segmentIndex
                 , onClick <| SetColor layerIndex visibleSegment model.currentColor
                 , onMouseDownWithButton <|
                     \b ->
@@ -361,6 +435,7 @@ picture model =
         [ width "700"
         , viewBox "-350 -25 700 850"
         , SAttr.class "picture-egg"
+        , SAttr.id "picture-egg"
         , onMouseDown <| SetAutoDrawing True
         , onMouseUp <| SetAutoDrawing False
         , onMouseLeave <| SetAutoDrawing False
@@ -398,7 +473,7 @@ rotateBar model =
         positionToRect { rectX, rectWidth, fillColor, index } =
             let
                 visibleSegment =
-                    remainderBy verticalSegments <| index + verticalSegments + model.rotation
+                    toVisibleSegment model index
             in
             rect
                 [ x <| String.fromFloat rectX
@@ -408,6 +483,7 @@ rotateBar model =
                 , fill fillColor
                 , stroke "gray"
                 , strokeWidth "1"
+                , attribute "data-segment-index" <| String.fromInt index
                 , onMouseDown <| PinSegment <| Just visibleSegment
                 , onMouseEnterWithButtons <|
                     \b ->
@@ -433,7 +509,11 @@ rotateBar model =
                 ]
                 rects
     in
-    div [ class "rotate-bar controls-width" ] [ bar ]
+    div
+        [ class "rotate-bar controls-width"
+        , id "rotate-bar"
+        ]
+        [ bar ]
 
 
 palette : Model -> Html Msg
