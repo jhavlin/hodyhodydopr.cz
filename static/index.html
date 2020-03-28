@@ -55,6 +55,7 @@
         }
 
         function handleEggTouchMove(evt) {
+            evt.preventDefault();
             handleEggTouchEvent(evt, app.ports.eggTouchMoved)
         }
 

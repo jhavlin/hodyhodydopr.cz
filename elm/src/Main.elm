@@ -4,6 +4,7 @@ import Array exposing (Array)
 import Browser
 import Browser.Navigation as Nav
 import CustomEvents exposing (onMouseDownWithButton, onMouseEnterWithButtons)
+import Eggs exposing (Egg, sd)
 import Heroicons.Solid as HIcons
 import Html exposing (Html, a, div, input, text)
 import Html.Attributes exposing (attribute, class, href, id, style, type_)
@@ -51,6 +52,7 @@ main =
 type alias Model =
     { key : Nav.Key
     , url : Url.Url
+    , egg : Egg
     , rotation : Int
     , colors : Array String
     , rotating : Bool
@@ -62,10 +64,6 @@ type alias Model =
     }
 
 
-type alias Point =
-    ( Int, Int )
-
-
 type ViewMode
     = Info
     | Edit
@@ -74,41 +72,37 @@ type ViewMode
     | Share
 
 
-type alias Area =
-    { topLeft : Point
-    , topRight : Point
-    , bottomLeft : Point
-    , bottomRight : Point
-    }
-
-
 init : () -> Url.Url -> Nav.Key -> ( Model, Cmd msg )
 init _ url key =
     let
+        egg =
+            Eggs.hd
+
         model =
             { key = key
             , url = url
             , rotation = 0
-            , colors = initColorsArray
+            , colors = initColorsArray egg
             , rotating = False
-            , currentColor = "#000000"
+            , currentColor = "#dd5875"
             , palette = [ "#53b9e9", "#fd6617", "#dd5875", "#8a75ad", "#fffc3f", "#ffffff", "#000000" ]
             , autoDrawing = False
             , pinnedSegment = Nothing
+            , egg = egg
             , viewMode = Edit
             }
     in
     ( model, initTouch () )
 
 
-initColorsArray : Array String
-initColorsArray =
-    Array.repeat (layersCount * verticalSegments) ""
+initColorsArray : Egg -> Array String
+initColorsArray egg =
+    Array.repeat (egg.layersCount * egg.verticalSegments) ""
 
 
 toVisibleSegment : Model -> Int -> Int
 toVisibleSegment model renderedSegmentIndex =
-    remainderBy verticalSegments <| renderedSegmentIndex + verticalSegments + model.rotation
+    remainderBy model.egg.verticalSegments <| renderedSegmentIndex + model.egg.verticalSegments + model.rotation
 
 
 
@@ -154,26 +148,29 @@ update msg model =
         SetColor layer segment color ->
             let
                 newPalette =
-                    if String.isEmpty color || List.member color model.palette then
+                    if String.isEmpty color then
                         model.palette
+
+                    else if List.member color model.palette then
+                        color :: List.filter (\c -> c /= color) model.palette
 
                     else
                         color :: List.take (List.length model.palette - 1) model.palette
             in
             ( { model
-                | colors = Array.set ((layer * verticalSegments) + segment) color model.colors
+                | colors = Array.set ((layer * model.egg.verticalSegments) + segment) color model.colors
                 , palette = newPalette
               }
             , Cmd.none
             )
 
         Rotate direction ->
-            ( { model | rotation = remainderBy verticalSegments <| model.rotation + verticalSegments + direction }
+            ( { model | rotation = remainderBy model.egg.verticalSegments <| model.rotation + model.egg.verticalSegments + direction }
             , Cmd.none
             )
 
         SetRotation rotation ->
-            ( { model | rotation = remainderBy verticalSegments <| rotation + verticalSegments }
+            ( { model | rotation = remainderBy model.egg.verticalSegments <| rotation + model.egg.verticalSegments }
             , Cmd.none
             )
 
@@ -210,9 +207,13 @@ update msg model =
 
         RotateBarTouchMoved segment ->
             let
-                newRotation = case model.pinnedSegment of
-                    Just pinned -> remainderBy verticalSegments <| verticalSegments + pinned - segment
-                    Nothing -> model.rotation
+                newRotation =
+                    case model.pinnedSegment of
+                        Just pinned ->
+                            remainderBy model.egg.verticalSegments <| model.egg.verticalSegments + pinned - segment
+
+                        Nothing ->
+                            model.rotation
             in
             ( { model | rotation = newRotation }
             , Cmd.none
@@ -224,7 +225,7 @@ update msg model =
                     toVisibleSegment model segment
             in
             ( { model
-                | colors = Array.set ((layer * verticalSegments) + visibleSegment) model.currentColor model.colors
+                | colors = Array.set ((layer * model.egg.verticalSegments) + visibleSegment) model.currentColor model.colors
               }
             , Cmd.none
             )
@@ -235,7 +236,7 @@ update msg model =
                     toVisibleSegment model segment
             in
             ( { model
-                | colors = Array.set ((layer * verticalSegments) + visibleSegment) model.currentColor model.colors
+                | colors = Array.set ((layer * model.egg.verticalSegments) + visibleSegment) model.currentColor model.colors
               }
             , Cmd.none
             )
@@ -264,115 +265,6 @@ eggColor =
     "#efb67f"
 
 
-verticalSegments : Int
-verticalSegments =
-    64
-
-
-verticalCoefficients : List Float
-verticalCoefficients =
-    let
-        n =
-            verticalSegments // 4
-
-        angle =
-            pi / 2 / toFloat n
-    in
-    List.range -n n |> List.map (\i -> sin <| toFloat i * angle)
-
-
-verticalCoefficientPairs : List ( Float, Float )
-verticalCoefficientPairs =
-    List.map2 (\a b -> ( a, b )) verticalCoefficients <|
-        Maybe.withDefault [] <|
-            List.tail verticalCoefficients
-
-
-layerBorders : List ( Int, Int )
-layerBorders =
-    [ ( 29, 0 ) -- 1
-    , ( 105, 30 ) -- 2
-    , ( 146, 60 ) -- 3
-    , ( 178, 90 ) -- 4
-    , ( 207, 120 ) -- 5
-    , ( 229, 150 ) -- 6
-    , ( 251, 180 ) -- 7
-    , ( 268, 210 ) -- 8
-    , ( 280, 240 ) -- 9
-    , ( 291, 270 ) -- 10
-    , ( 301, 300 ) -- 11
-    , ( 308, 330 ) -- 12
-    , ( 315, 360 ) -- 13
-    , ( 319, 390 ) -- 14
-    , ( 322, 420 ) -- 15
-    , ( 324, 450 ) -- 16
-    , ( 322, 480 ) -- 17
-    , ( 320, 510 ) -- 18
-    , ( 315, 540 ) -- 19
-    , ( 310, 570 ) -- 20
-    , ( 300, 600 ) -- 21
-    , ( 287, 630 ) -- 22
-    , ( 270, 660 ) -- 23
-    , ( 248, 690 ) -- 24
-    , ( 222, 720 ) -- 25
-    , ( 188, 750 ) -- 26
-    , ( 140, 780 ) -- 27
-    , ( 41, 810 ) -- 28
-    ]
-
-
-layerBorderPairs : List ( ( Int, Int ), ( Int, Int ) )
-layerBorderPairs =
-    List.map2 (\a b -> ( a, b )) layerBorders <|
-        Maybe.withDefault [] <|
-            List.tail layerBorders
-
-
-layersCount : Int
-layersCount =
-    List.length layerBorderPairs
-
-
-areas : List (List Area)
-areas =
-    let
-        convertBorderPair ( ( w1, y1 ), ( w2, y2 ) ) =
-            let
-                toArea ( c1, c2 ) =
-                    { topLeft = ( round <| c1 * toFloat w1, y1 )
-                    , topRight = ( round <| c2 * toFloat w1, y1 )
-                    , bottomRight = ( round <| c2 * toFloat w2, y2 )
-                    , bottomLeft = ( round <| c1 * toFloat w2, y2 )
-                    }
-            in
-            List.map toArea verticalCoefficientPairs
-    in
-    List.map convertBorderPair layerBorderPairs
-
-
-polygonPoints : List (List String)
-polygonPoints =
-    let
-        pointToStr ( x, y ) =
-            String.fromInt x ++ "," ++ String.fromInt y
-
-        areaToPoints { topLeft, topRight, bottomRight, bottomLeft } =
-            String.concat
-                [ pointToStr topLeft
-                , " "
-                , pointToStr topRight
-                , " "
-                , pointToStr bottomRight
-                , " "
-                , pointToStr bottomLeft
-                ]
-
-        mapAreaList list =
-            List.map areaToPoints list
-    in
-    List.map mapAreaList areas
-
-
 picture : Model -> Html Msg
 picture model =
     let
@@ -382,7 +274,7 @@ picture model =
                     toVisibleSegment model segmentIndex
 
                 fillStr =
-                    Array.get ((layerIndex * verticalSegments) + visibleSegment) model.colors |> Maybe.withDefault ""
+                    Array.get ((layerIndex * model.egg.verticalSegments) + visibleSegment) model.colors |> Maybe.withDefault ""
 
                 color =
                     if String.isEmpty fillStr then
@@ -429,7 +321,7 @@ picture model =
                 pointsList
 
         areaShapes =
-            List.concat <| List.indexedMap layerToShapes polygonPoints
+            List.concat <| List.indexedMap layerToShapes model.egg.polygonPoints
     in
     svg
         [ width "700"
@@ -449,7 +341,7 @@ rotateBar model =
         coefficientsToRectPosition index ( c1, c2 ) =
             let
                 fillColor =
-                    if 0 == remainderBy verticalSegments (model.rotation + index + verticalSegments - (verticalSegments // 4)) then
+                    if 0 == remainderBy model.egg.verticalSegments (model.rotation + index + model.egg.verticalSegments - (model.egg.verticalSegments // 4)) then
                         "black"
 
                     else if 0 == remainderBy 8 (model.rotation + index) then
@@ -465,7 +357,7 @@ rotateBar model =
             }
 
         rectPositions =
-            List.indexedMap coefficientsToRectPosition verticalCoefficientPairs
+            List.indexedMap coefficientsToRectPosition model.egg.verticalCoefficientPairs
 
         validRectPositions =
             List.filter (\i -> i.rectWidth > 1) rectPositions
@@ -477,7 +369,7 @@ rotateBar model =
             in
             rect
                 [ x <| String.fromFloat rectX
-                , y <| String.fromFloat <| -18 + (rectWidth / 3)
+                , y <| "-18"
                 , width <| String.fromFloat rectWidth
                 , height <| "36"
                 , fill fillColor
@@ -501,7 +393,7 @@ rotateBar model =
         bar =
             svg
                 [ width "400"
-                , viewBox "-200 -25 400 50"
+                , viewBox "-200 -20 400 40"
                 , SAttr.class "rotate-bar-svg"
                 , onMouseDown <| SetRotating True
                 , onMouseUp <| SetRotating False
