@@ -13,9 +13,24 @@ body {
     font-size: 12px;
 }
 
+h1 {
+    margin: 2.5rem 0 1.5rem 0;
+    padding: 0;
+}
+
+.larger {
+    font-size: 120%;
+}
+
+.copyleft {
+    transform: rotate(180deg);
+    display: inline-block;
+}
+
 div.main-area {
     flex: 1 1 auto;
     display: flex;
+    position: relative;
 }
 
 div.main-menu {
@@ -167,4 +182,45 @@ h1.site-title {
 
 .rotate-bar-svg {
     max-width: 100%;
+}
+
+.view-cover {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    overflow: auto;
+    z-index: 1;
+    background: linear-gradient(to top, white 10%, rgba(255, 255, 255, 0.85) 100%);
+    display: flex;
+    justify-content: center;
+    font-size: 16px;
+    border-top: 10px var(--easter-green) solid;
+}
+
+.view-cover > .base-width {
+    width: 400px;
+}
+
+.view-info-outer {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.view-info-top {
+    flex: 1 1 auto;
+    margin: 0 1rem;
+}
+
+.view-info-bottom {
+    flex: 0 0 auto;
+    margin: 0 1rem;
+}
+
+.resolution-button {
+    margin: 0.2rem;
+    padding: 0.4rem;
+    width: 8em;
 }

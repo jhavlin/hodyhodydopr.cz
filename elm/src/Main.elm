@@ -4,10 +4,10 @@ import Array exposing (Array)
 import Browser
 import Browser.Navigation as Nav
 import CustomEvents exposing (onMouseDownWithButton, onMouseEnterWithButtons)
-import Eggs exposing (Egg, Point)
+import Eggs exposing (Egg)
 import Heroicons.Solid as HIcons
-import Html exposing (Html, a, div, input, text)
-import Html.Attributes exposing (attribute, class, href, id, style, type_)
+import Html exposing (Html, a, button, div, h1, h2, input, li, p, span, text, ul)
+import Html.Attributes exposing (attribute, class, href, id, style, target, type_)
 import Html.Events exposing (onClick, onInput, onMouseDown, onMouseLeave, onMouseUp)
 import Html.Lazy as Lazy
 import ParseInt exposing (parseIntHex, toHex)
@@ -138,6 +138,8 @@ type Msg
     | EggMouseDownInSegment Int Int Int
     | EggMouseEnterInSegment Int Int Int
     | ToggleBrush
+    | SetViewMode ViewMode
+    | NewEgg String
     | NoOp
 
 
@@ -378,6 +380,27 @@ update msg model =
                             B1
             in
             ( { model | brush = newBrush }, Cmd.none )
+
+        SetViewMode mode ->
+            ( { model | viewMode = mode }, Cmd.none )
+
+        NewEgg resolution ->
+            let
+                egg =
+                    case resolution of
+                        "ld" ->
+                            Eggs.ld
+
+                        "hd" ->
+                            Eggs.hd
+
+                        _ ->
+                            Eggs.sd
+
+                colors =
+                    initColorsArray egg
+            in
+            ( { model | egg = egg, colors = colors, viewMode = Edit }, Cmd.none )
 
 
 
@@ -669,36 +692,58 @@ view model =
     { title = "Bezkontaktní Velikonoce"
     , body =
         [ div [ class "main-area notranslate", attribute "translate" "no" ]
-            [ viewMainArea model ]
+            (viewMainArea model)
         , div [ class "main-menu notranslate", attribute "translate" "no" ]
             [ viewMainMenu model ]
         ]
     }
 
 
-viewMainArea : Model -> Html Msg
+viewMainArea : Model -> List (Html Msg)
 viewMainArea model =
-    viewEdit model
+    let
+        others =
+            case model.viewMode of
+                Info ->
+                    [ viewInfo model ]
+
+                List ->
+                    [ viewList model ]
+
+                Share ->
+                    [ viewShare model ]
+
+                _ ->
+                    []
+    in
+    viewEdit model :: others
 
 
 viewMainMenu : Model -> Html Msg
 viewMainMenu model =
     let
+        selected mode =
+            if mode == model.viewMode then
+                " selected"
+
+            else
+                ""
+
         infoItem =
-            a [ href "#", class "main-menu-item" ]
-                [ HIcons.informationCircle [ SAttr.class "main-menu-item-icon" ] ]
+            div [ class <| "main-menu-item" ++ selected Info, onClick <| SetViewMode Info ]
+                [ HIcons.informationCircle [ SAttr.class <| "main-menu-item-icon" ++ selected Info ] ]
 
         listItem =
-            a [ href "#", class "main-menu-item" ]
-                [ HIcons.folder [ SAttr.class "main-menu-item-icon" ] ]
+            div [ class <| "main-menu-item" ++ selected List, onClick <| SetViewMode List ]
+                [ HIcons.folder [ SAttr.class <| "main-menu-item-icon" ++ selected List ] ]
 
         editItem =
-            a [ href "#", class "main-menu-item selected" ]
-                [ HIcons.pencil [ SAttr.class "main-menu-item-icon selected" ] ]
+            div [ class <| "main-menu-item" ++ selected Edit, onClick <| SetViewMode Edit ]
+                [ HIcons.pencil [ SAttr.class <| "main-menu-item-icon" ++ selected Edit ] ]
 
         shareItem =
-            a [ href "#", class "main-menu-item" ]
-                [ HIcons.share [ SAttr.class "main-menu-item-icon" ] ]
+            div [ class <| "main-menu-item" ++ selected Share, onClick <| SetViewMode Share ]
+                [ HIcons.share [ SAttr.class <| "main-menu-item-icon" ++ selected Share ] ]
     in
     div [ class "main-menu-inner controls-width" ]
         [ infoItem, listItem, editItem, shareItem ]
@@ -726,21 +771,83 @@ viewEdit model =
         ]
 
 
+viewInfo : Model -> Html msg
+viewInfo model =
+    let
+        top =
+            div [ class "view-info-top" ]
+                [ h1 [] [ text "Bezkontaktní Velikonoce" ]
+                , p [] [ text "[ Vývojová, nedokončená verze! ]" ]
+                , p []
+                    [ text "Navrhněte kraslici pro ty, které nemůžete podarovat osobně. "
+                    ]
+                , p []
+                    [ text "Stačí vybrat barvy a nanést je na kybervajíčko. "
+                    , text "Až budete se svým výtvorem spokojeni, klikněte na tlačítko pro sdílení (vpravo), "
+                    , text "kraslici uložte, zkopírujte si URL adresu pro prohlížení a pošlete ji koledníkům."
+                    ]
+                , p [] [ text "Protože máme přestupný rok, mohou malovat i kluci." ]
+                , p [] [ span [ class "larger" ] [ text "♥" ], text " ", text "Věnováno všem, co se starají." ]
+                ]
+
+        bottom =
+            div
+                [ class "view-info-bottom" ]
+                [ p []
+                    [ span [ class "copyleft" ] [ text " ©" ]
+                    , text " 2020"
+                    , text " "
+                    , a [ href "https://primitiweb.cz", target "_new" ] [ text "primitiweb.cz" ]
+                    ]
+                ]
+    in
+    div [ class "view-info view-cover notranslate", attribute "translate" "no" ]
+        [ div [ class "base-width" ]
+            [ div [ class "view-info-outer" ]
+                [ top
+                , bottom
+                ]
+            ]
+        ]
+
+
 viewShow : Model -> Html msg
 viewShow model =
     div [] []
 
 
-viewList : Model -> Html msg
+viewList : Model -> Html Msg
 viewList model =
-    div [] []
-
-
-viewInfo : Model -> Html msg
-viewInfo model =
-    div [] []
+    div [ class "view-info view-cover notranslate", attribute "translate" "no" ]
+        [ div [ class "base-width" ]
+            [ div [ class "view-info-outer" ]
+                [ div [ class "view-info-top" ]
+                    [ h1 [] [ text "Moje kraslice" ]
+                    , p [] [ text "[ Vývojová, nedokončená verze! ]" ]
+                    , p [] [ text "Správa kraslic ještě není hotová :-(" ]
+                    , h2 [] [ text "Nová kraslice" ]
+                    , p [] [ text "Zvolte rozlišení:" ]
+                    , ul []
+                        [ li [] [ button [ class "resolution-button", onClick <| NewEgg "ld" ] [ text "Hrubé" ] ]
+                        , li [] [ button [ class "resolution-button", onClick <| NewEgg "sd" ] [ text "Polohrubé" ] ]
+                        , li [] [ button [ class "resolution-button", onClick <| NewEgg "hd" ] [ text "Hladké" ] ]
+                        ]
+                    ]
+                ]
+            ]
+        ]
 
 
 viewShare : Model -> Html msg
 viewShare model =
-    div [] []
+    div [ class "view-info view-cover notranslate", attribute "translate" "no" ]
+        [ div [ class "base-width" ]
+            [ div [ class "view-info-outer" ]
+                [ div [ class "view-info-top" ]
+                    [ h1 [] [ text "Uložit & sdílet" ]
+                    , p [] [ text "[ Vývojová, nedokončená verze! ]" ]
+                    , p [] [ text "Ukládání a sdílení není ještě hotové :-(" ]
+                    ]
+                ]
+            ]
+        ]
