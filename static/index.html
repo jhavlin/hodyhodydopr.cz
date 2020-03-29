@@ -40,23 +40,30 @@
         }
 
         function handleEggTouchEvent(evt, port) {
+            if (evt.touches.length > 1) {
+                return false;
+            }
             const el = document.elementFromPoint(evt.touches[0].clientX, evt.touches[0].clientY);
             if (el) {
                 const layer = el.getAttribute('data-layer-index');
                 const segment = el.getAttribute('data-segment-index');
                 if (layer && segment) {
                     port.send([parseInt(layer), parseInt(segment)]);
+                    return true;
                 }
             }
+            return false;
         }
 
         function handleEggTouchStart(evt) {
-            handleEggTouchEvent(evt, app.ports.eggTouchStarted)
+            // handleEggTouchEvent(evt, app.ports.eggTouchStarted)
         }
 
         function handleEggTouchMove(evt) {
-            evt.preventDefault();
-            handleEggTouchEvent(evt, app.ports.eggTouchMoved)
+            const drawn = handleEggTouchEvent(evt, app.ports.eggTouchMoved)
+            if (drawn) {
+                evt.preventDefault();
+            }
         }
 
         app = Elm.Main.init({
