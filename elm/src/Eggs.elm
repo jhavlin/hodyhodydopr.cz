@@ -14,7 +14,8 @@ type alias Area =
 
 
 type alias Egg =
-    { verticalSegments : Int
+    { id : String
+    , verticalSegments : Int
     , verticalCoefficients : List Float
     , verticalCoefficientPairs : List ( Float, Float )
     , layerBorders : List ( Int, Int )
@@ -84,8 +85,8 @@ createPolygonPoints areas =
     List.map mapAreaList areas
 
 
-makeEggInfo : Int -> List ( Int, Int ) -> Egg
-makeEggInfo verticalSegments layerBorders =
+makeEggInfo : String -> Int -> List ( Int, Int ) -> Egg
+makeEggInfo id verticalSegments layerBorders =
     let
         verticalCoefficients =
             coefficientsForSegmentCount verticalSegments
@@ -109,7 +110,8 @@ makeEggInfo verticalSegments layerBorders =
         polygonPoints =
             createPolygonPoints areas
     in
-    { verticalSegments = verticalSegments
+    { id = id
+    , verticalSegments = verticalSegments
     , verticalCoefficients = verticalCoefficients
     , verticalCoefficientPairs = verticalCoefficientPairs
     , layerBorders = layerBorders
@@ -122,7 +124,8 @@ makeEggInfo verticalSegments layerBorders =
 
 ld : Egg
 ld =
-    makeEggInfo 32
+    makeEggInfo "ld"
+        32
         [ ( 29, 0 ) -- 1
         , ( 146, 60 ) -- 3
         , ( 207, 120 ) -- 5
@@ -143,7 +146,8 @@ ld =
 
 sd : Egg
 sd =
-    makeEggInfo 64
+    makeEggInfo "sd"
+        64
         [ ( 29, 0 ) -- 1
         , ( 105, 30 ) -- 2
         , ( 146, 60 ) -- 3
@@ -177,7 +181,8 @@ sd =
 
 hd : Egg
 hd =
-    makeEggInfo 128
+    makeEggInfo "hd"
+        128
         [ ( 29, 0 ) -- 1
         , ( 105, 30 ) -- 2
         , ( 125, 45 ) -- 2

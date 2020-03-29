@@ -4,7 +4,7 @@ import Array exposing (Array)
 import Browser
 import Browser.Navigation as Nav
 import CustomEvents exposing (onMouseDownWithButton, onMouseEnterWithButtons)
-import Eggs exposing (Egg)
+import Eggs exposing (Egg, Point)
 import Heroicons.Solid as HIcons
 import Html exposing (Html, a, div, input, text)
 import Html.Attributes exposing (attribute, class, href, id, style, type_)
@@ -59,6 +59,7 @@ type alias Model =
     , colors : Array String
     , rotating : Bool
     , currentColor : String
+    , brush : Brush
     , palette : List String
     , autoDrawing : Bool
     , pinnedSegment : Maybe Int
@@ -74,6 +75,14 @@ type ViewMode
     | Share
 
 
+type Brush
+    = B1
+    | B2
+    | B3
+    | B4
+    | B5
+
+
 init : () -> Url.Url -> Nav.Key -> ( Model, Cmd msg )
 init _ url key =
     let
@@ -87,6 +96,7 @@ init _ url key =
             , colors = initColorsArray egg
             , rotating = False
             , currentColor = "#dd5875"
+            , brush = B1
             , palette = [ "#53b9e9", "#fd6617", "#dd5875", "#8a75ad", "#fffc3f", "#ffffff", "#000000" ]
             , autoDrawing = False
             , pinnedSegment = Nothing
@@ -114,7 +124,7 @@ toVisibleSegment egg rotation renderedSegmentIndex =
 type Msg
     = LinkClicked Browser.UrlRequest
     | UrlChanged Url.Url
-    | SetColor Int Int String
+    | Paint Int Int
     | SetRotating Bool
     | SetCurrentColor String
     | SetAutoDrawing Bool
@@ -125,7 +135,11 @@ type Msg
     | RotateBarMouseEnteredSegment Int Int
     | EggTouchStarted ( Int, Int )
     | EggTouchMoved ( Int, Int )
+    | EggMouseDownInSegment Int Int Int
+    | EggMouseEnterInSegment Int Int Int
+    | ToggleBrush
     | NoOp
+
 
 updatePalette : String -> List String -> List String
 updatePalette color palette =
@@ -137,6 +151,66 @@ updatePalette color palette =
 
     else
         color :: List.take (List.length palette - 1) palette
+
+
+paint : Model -> Int -> Int -> { colors : Array String, palette : List String }
+paint model layerIndex segmentIndex =
+    let
+        ( a, r ) =
+            case model.brush of
+                B1 ->
+                    ( 0, 1 )
+
+                B2 ->
+                    ( 1, 1 )
+
+                B3 ->
+                    ( 2, 2 )
+
+                B4 ->
+                    ( 3, 2 )
+
+                B5 ->
+                    ( 4, 3 )
+
+        nearSegments =
+            List.range -a a
+
+        nearLayers =
+            List.range -a a
+
+        segmentFn layerOffset segmentOffset colors =
+            if
+                layerIndex
+                    + layerOffset
+                    >= 0
+                    && layerIndex
+                    + layerOffset
+                    < model.egg.layersCount
+                    && (abs layerOffset < r || abs segmentOffset < r)
+            then
+                let
+                    actualSegment =
+                        toVisibleSegment model.egg model.rotation (segmentIndex + segmentOffset)
+
+                    actualLayer =
+                        layerIndex + layerOffset
+                in
+                Array.set ((actualLayer * model.egg.verticalSegments) + actualSegment) model.currentColor colors
+
+            else
+                colors
+
+        layerFn layerOffset colors =
+            List.foldl (segmentFn layerOffset) colors nearSegments
+
+        updatedColors =
+            List.foldl layerFn model.colors nearLayers
+    in
+    { colors = updatedColors
+    , palette = updatePalette model.currentColor model.palette
+    }
+
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
@@ -157,10 +231,14 @@ update msg model =
             , Cmd.none
             )
 
-        SetColor layer segment color ->
+        Paint layer segment ->
+            let
+                { colors, palette } =
+                    paint model layer segment
+            in
             ( { model
-                | colors = Array.set ((layer * model.egg.verticalSegments) + segment) color model.colors
-                , palette = updatePalette color model.palette
+                | colors = colors
+                , palette = palette
               }
             , Cmd.none
             )
@@ -220,32 +298,86 @@ update msg model =
                 ( { model | rotation = Maybe.withDefault 0 model.pinnedSegment - index }, Cmd.none )
 
             else
-                ( model, Cmd.none)
+                ( model, Cmd.none )
 
-
-        EggTouchStarted ( layer, segment ) ->
+        EggTouchStarted ( layerIndex, segmentIndex ) ->
             let
-                visibleSegment =
-                    toVisibleSegment model.egg model.rotation segment
+                { colors, palette } =
+                    paint model layerIndex segmentIndex
             in
-            ( { model
-                | colors = Array.set ((layer * model.egg.verticalSegments) + visibleSegment) model.currentColor model.colors
-                , palette = updatePalette model.currentColor model.palette
-              }
+            ( { model | colors = colors, palette = palette }
             , Cmd.none
             )
 
-        EggTouchMoved ( layer, segment ) ->
+        EggTouchMoved ( layerIndex, segmentIndex ) ->
             let
-                visibleSegment =
-                    toVisibleSegment model.egg model.rotation segment
+                { colors, palette } =
+                    paint model layerIndex segmentIndex
             in
-            ( { model
-                | colors = Array.set ((layer * model.egg.verticalSegments) + visibleSegment) model.currentColor model.colors
-                , palette = updatePalette model.currentColor model.palette
-              }
+            ( { model | colors = colors, palette = palette }
             , Cmd.none
             )
+
+        EggMouseDownInSegment layerIndex segmentIndex button ->
+            let
+                newModel =
+                    if button == 0 then
+                        let
+                            { colors, palette } =
+                                paint model layerIndex segmentIndex
+                        in
+                        { model | colors = colors, palette = palette }
+
+                    else if button == 1 then
+                        let
+                            visibleSegment =
+                                toVisibleSegment model.egg model.rotation segmentIndex
+                        in
+                        { model | pinnedSegment = Just visibleSegment }
+
+                    else
+                        model
+            in
+            ( newModel, Cmd.none )
+
+        EggMouseEnterInSegment layerIndex segmentIndex buttons ->
+            let
+                newModel =
+                    if buttons == 1 && model.autoDrawing then
+                        let
+                            { colors, palette } =
+                                paint model layerIndex segmentIndex
+                        in
+                        { model | colors = colors, palette = palette }
+
+                    else if buttons == 4 && Maybe.withDefault -1 model.pinnedSegment >= 0 then
+                        { model | rotation = Maybe.withDefault 0 model.pinnedSegment - segmentIndex }
+
+                    else
+                        model
+            in
+            ( newModel, Cmd.none )
+
+        ToggleBrush ->
+            let
+                newBrush =
+                    case model.brush of
+                        B1 ->
+                            B2
+
+                        B2 ->
+                            B3
+
+                        B3 ->
+                            B4
+
+                        B4 ->
+                            B5
+
+                        B5 ->
+                            B1
+            in
+            ( { model | brush = newBrush }, Cmd.none )
 
 
 
@@ -308,8 +440,8 @@ adjustColor hexColor coefficient =
     String.concat [ "#", asHex newR, asHex newG, asHex newB ]
 
 
-picture : Model -> Html Msg
-picture model =
+pictureView : Model -> Html Msg
+pictureView model =
     let
         areaToShape layerIndex segmentIndex polygonPointsStr =
             let
@@ -337,27 +469,9 @@ picture model =
                 , SAttr.class "egg-area"
                 , attribute "data-layer-index" <| String.fromInt layerIndex
                 , attribute "data-segment-index" <| String.fromInt segmentIndex
-                , onClick <| SetColor layerIndex visibleSegment model.currentColor
-                , onMouseDownWithButton <|
-                    \b ->
-                        if b == 0 then
-                            SetColor layerIndex visibleSegment model.currentColor
-
-                        else if b == 1 then
-                            PinSegment <| Just visibleSegment
-
-                        else
-                            NoOp
-                , onMouseEnterWithButtons <|
-                    \bs ->
-                        if bs == 1 && model.autoDrawing then
-                            SetColor layerIndex visibleSegment model.currentColor
-
-                        else if bs == 4 && Maybe.withDefault -1 model.pinnedSegment >= 0 then
-                            SetRotation <| Maybe.withDefault 0 model.pinnedSegment - segmentIndex
-
-                        else
-                            NoOp
+                , onClick <| Paint layerIndex segmentIndex
+                , onMouseDownWithButton <| EggMouseDownInSegment layerIndex segmentIndex
+                , onMouseEnterWithButtons <| EggMouseEnterInSegment layerIndex segmentIndex
                 ]
                 []
 
@@ -488,6 +602,68 @@ paletteView currentColor palette =
         ]
 
 
+brushSelectView : Brush -> String -> Html Msg
+brushSelectView brush color =
+    let
+        size =
+            case brush of
+                B1 ->
+                    "2"
+
+                B2 ->
+                    "4"
+
+                B3 ->
+                    "8"
+
+                B4 ->
+                    "10"
+
+                B5 ->
+                    "12"
+
+        showColor =
+            if String.length color == 7 then
+                color
+
+            else
+                eggColor
+
+        sizeCircle =
+            Svg.circle
+                [ SAttr.cx "0"
+                , SAttr.cy "0"
+                , SAttr.r size
+                , fill showColor
+                , strokeWidth "2"
+                , SAttr.stroke <| adjustColor showColor 0.6
+                ]
+                []
+
+        borderCircle =
+            Svg.circle
+                [ SAttr.cx "0"
+                , SAttr.cy "0"
+                , SAttr.r "14"
+                , fill "none"
+                , strokeWidth "2"
+                , SAttr.stroke <| adjustColor showColor 0.6
+                ]
+                []
+    in
+    div
+        [ class "brush-select"
+        , onClick ToggleBrush
+        ]
+        [ svg
+            [ width "40"
+            , viewBox "-20 -20 40 40"
+            , SAttr.class "brush-select-svg"
+            ]
+            [ sizeCircle, borderCircle ]
+        ]
+
+
 view : Model -> Browser.Document Msg
 view model =
     { title = "Bezkontaktní Velikonoce"
@@ -535,7 +711,16 @@ viewMainMenu model =
 viewEdit : Model -> Html Msg
 viewEdit model =
     div [ class "view-edit notranslate", attribute "translate" "no" ]
-        [ div [ class "picture-container base-width" ] [ div [ class "picture-absolute" ] [ picture model ] ]
+        [ div [ class "picture-container base-width" ]
+            [ div [ class "picture-absolute" ]
+                [ pictureView model
+                , div [ class "picture-controls-anchor" ]
+                    [ div [ class "picture-controls-line" ]
+                        [ Lazy.lazy2 brushSelectView model.brush model.currentColor
+                        ]
+                    ]
+                ]
+            ]
         , Lazy.lazy2 rotateBarView model.egg model.rotation
         , Lazy.lazy2 paletteView model.currentColor model.palette
         ]

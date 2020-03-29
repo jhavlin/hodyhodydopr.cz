@@ -53,6 +53,7 @@ div.main-menu-inner {
 
 .controls-width {
     max-width: 400px;
+    position: relative;
 }
 
 .view-edit {
@@ -84,6 +85,20 @@ h1.site-title {
     top: 0;
     right: 0;
     bottom: 0;
+}
+
+.picture-controls-anchor {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: center;
+}
+
+.picture-controls-line {
+    width: 400px;
+    position: relative;
 }
 
 .picture-egg {
@@ -136,6 +151,12 @@ h1.site-title {
 
 .palette-color:hover {
     border-color: black;
+}
+
+.brush-select {
+    position: absolute;
+    bottom: 0;
+    left: 0;
 }
 
 .rotate-bar {
