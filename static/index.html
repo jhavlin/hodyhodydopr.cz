@@ -19,6 +19,27 @@
 <body>
     <script type="text/javascript">
 
+        const LIST = 'list';
+        const LAST_ID = 'last-id';
+        const DATA = id => `data-${id}`;
+        const INITIAL_EGG = { localId: 1, typeId: "sd", local: true, title: "", message: "" };
+
+        function getLocalJson(key, fallbackValue) {
+            const str = localStorage.getItem(key);
+            if (str) {
+                try {
+                    return JSON.parse(str);
+                } catch (e) {
+                    return fallbackValue;
+                }
+            }
+            return fallbackValue;
+        }
+
+        function setLocalJson(key, value) {
+            localStorage.setItem(key, JSON.stringify(value));
+        }
+
         let app;
 
         function handleRotateBarTouchEvent(evt, port) {
@@ -66,11 +87,29 @@
             }
         }
 
+        function loadEgg(urlInfo) {
+            let localId;
+            if (urlInfo.localId) {
+                localId = urlInfo.localId;
+            } else {
+                localId = parseInt(localStorage.getItem(LAST_ID) || 1);
+            }
+            const colors = getLocalJson(`l-${localId}`, []);
+            app.ports.eggLoaded.send({ colors });
+        }
+
+        const list = getLocalJson(LIST, [ INITIAL_EGG ]);
+
         app = Elm.Main.init({
             node: document,
+            flags: {
+                implicitLocalId: parseInt(localStorage.getItem(LAST_ID) || INITIAL_EGG.localId),
+                list: list.length ? list : [ INITIAL_EGG ],
+                // , { localId: 1, typeId: "sd", local: true, title: "První", message: "", histogram: ["#abcdef","#aa00ff","#ff00aa","#770077","#770022","#99aaff"] }
+            }
         });
 
-        app.ports.initTouch.subscribe(function(data) {
+        app.ports.initApp.subscribe(function(urlInfo) {
             const rotateBar = document.getElementById('rotate-bar');
             if (rotateBar) {
                 rotateBar.addEventListener('touchstart', handleRotateBarTouchStart);
@@ -81,7 +120,28 @@
                 pictureEgg.addEventListener('touchstart', handleEggTouchStart);
                 pictureEgg.addEventListener('touchmove', handleEggTouchMove);
             }
+
+            loadEgg(urlInfo);
         });
+
+        app.ports.saveEggAndList.subscribe(function({ localId, colors, list }) {
+            setLocalJson(`l-${localId}`, colors);
+            setLocalJson(LIST, list);
+            setLocalJson(LAST_ID, localId);
+        });
+
+        app.ports.loadEgg.subscribe(function(urlInfo) {
+            loadEgg(urlInfo);
+        });
+
+        // app.ports.saveList.subscribe(function(list) {
+        //     setLocalJson(LIST, list);
+        // });
+
+        // app.ports.saveLastLocalId.subscribe(function(localId) {
+        //     setLocalJson(LAST_ID, localId);
+        // });
+
     </script>
 </body>
 </html>

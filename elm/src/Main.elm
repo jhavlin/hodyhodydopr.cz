@@ -4,19 +4,42 @@ import Array exposing (Array)
 import Browser
 import Browser.Navigation as Nav
 import CustomEvents exposing (onMouseDownWithButton, onMouseEnterWithButtons)
-import Eggs exposing (Egg)
+import Decoders
+import Eggs exposing (EggTypeInfo)
+import Encoders
 import Heroicons.Solid as HIcons
 import Html exposing (Html, a, button, div, h1, h2, input, li, p, span, text, ul)
 import Html.Attributes exposing (attribute, class, href, id, style, target, type_)
 import Html.Events exposing (onClick, onInput, onMouseDown, onMouseLeave, onMouseUp)
 import Html.Lazy as Lazy
+import Json.Decode as Decode
+import Json.Encode as Encode
 import ParseInt exposing (parseIntHex, toHex)
 import Svg exposing (polygon, rect, svg)
 import Svg.Attributes as SAttr exposing (fill, height, points, stroke, strokeWidth, viewBox, width, x, y)
+import Types exposing (EggInfo, UrlInfo(..), emptyEggInfo)
 import Url
+import UrlParsers
 
 
-port initTouch : () -> Cmd msg
+port initApp : Encode.Value -> Cmd msg
+
+
+
+-- port saveList : Encode.Value -> Cmd msg
+
+
+port saveEggAndList : Encode.Value -> Cmd msg
+
+
+port loadEgg : Encode.Value -> Cmd msg
+
+
+
+-- port saveLastLocalId : Encode.Value -> Cmd msg
+
+
+port eggLoaded : (Decode.Value -> msg) -> Sub msg
 
 
 port rotateBarTouchStarted : (Int -> msg) -> Sub msg
@@ -35,7 +58,7 @@ port eggTouchMoved : (( Int, Int ) -> msg) -> Sub msg
 -- MAIN
 
 
-main : Program () Model Msg
+main : Program Decode.Value Model Msg
 main =
     Browser.application
         { init = init
@@ -54,7 +77,10 @@ main =
 type alias Model =
     { key : Nav.Key
     , url : Url.Url
-    , egg : Egg
+    , eggInfo : EggInfo
+    , eggList : List EggInfo
+    , currentEggType : EggTypeInfo
+    , implicitLocalId : Int
     , rotation : Int
     , colors : Array String
     , rotating : Bool
@@ -64,6 +90,8 @@ type alias Model =
     , autoDrawing : Bool
     , pinnedSegment : Maybe Int
     , viewMode : ViewMode
+    , loadState : LoadState
+    , time : Int
     }
 
 
@@ -75,6 +103,11 @@ type ViewMode
     | Share
 
 
+type LoadState
+    = Loading
+    | Loaded
+
+
 type Brush
     = B1
     | B2
@@ -83,36 +116,58 @@ type Brush
     | B5
 
 
-init : () -> Url.Url -> Nav.Key -> ( Model, Cmd msg )
-init _ url key =
+initialPalette : List String
+initialPalette =
+    [ "#53b9e9", "#fd6617", "#dd5875", "#8a75ad", "#fffc3f", "#ffffff", "#000000" ]
+
+
+init : Decode.Value -> Url.Url -> Nav.Key -> ( Model, Cmd msg )
+init flagsJson url key =
     let
-        egg =
-            Eggs.sd
+        decoded =
+            Decode.decodeValue Decoders.decodeFlags flagsJson
+                |> Result.withDefault { eggList = [], implicitLocalId = 0 }
+
+        eggInfo =
+            List.filter (\i -> i.localId == decoded.implicitLocalId) decoded.eggList
+                |> List.head
+                |> Maybe.withDefault emptyEggInfo
+
+        eggType =
+            Eggs.typeInfoForTypeId eggInfo.typeId
+
+        urlInfo =
+            UrlParsers.parseUrl url
 
         model =
             { key = key
             , url = url
             , rotation = 0
-            , colors = initColorsArray egg
+            , colors = initColorsArray eggType
             , rotating = False
             , currentColor = "#dd5875"
             , brush = B1
-            , palette = [ "#53b9e9", "#fd6617", "#dd5875", "#8a75ad", "#fffc3f", "#ffffff", "#000000" ]
+            , palette = Maybe.withDefault initialPalette eggInfo.palette
             , autoDrawing = False
             , pinnedSegment = Nothing
-            , egg = egg
+            , currentEggType = eggType
+            , eggInfo = eggInfo
             , viewMode = Edit
+            , loadState = Loading
+            , eggList = decoded.eggList
+            , implicitLocalId = decoded.implicitLocalId
+            , time = 0
             }
     in
-    ( model, initTouch () )
+    ( model, initApp <| Encoders.encodeUrlInfo urlInfo )
 
 
-initColorsArray : Egg -> Array String
+initColorsArray : EggTypeInfo -> Array String
 initColorsArray egg =
     Array.repeat (egg.layersCount * egg.verticalSegments) ""
 
 
-toVisibleSegment : Egg -> Int -> Int -> Int
+toVisibleSegment : EggTypeInfo -> Int -> Int -> Int
 toVisibleSegment egg rotation renderedSegmentIndex =
     remainderBy egg.verticalSegments <| renderedSegmentIndex + egg.verticalSegments + rotation
 
@@ -140,7 +195,18 @@ type Msg
     | ToggleBrush
     | SetViewMode ViewMode
     | NewEgg String
+    | EggLoaded Decode.Value
     | NoOp
+
+
+updateEggList : Maybe EggInfo -> List EggInfo -> List EggInfo
+updateEggList eggInfoOpt eggList =
+    case eggInfoOpt of
+        Just eggInfo ->
+            eggInfo :: List.filter (\i -> i.localId /= eggInfo.localId) eggList
+
+        Nothing ->
+            eggList
 
 
 updatePalette : String -> List String -> List String
@@ -188,17 +254,17 @@ paint model layerIndex segmentIndex =
                     >= 0
                     && layerIndex
                     + layerOffset
-                    < model.egg.layersCount
+                    < model.currentEggType.layersCount
                     && (abs layerOffset < r || abs segmentOffset < r)
             then
                 let
                     actualSegment =
-                        toVisibleSegment model.egg model.rotation (segmentIndex + segmentOffset)
+                        toVisibleSegment model.currentEggType model.rotation (segmentIndex + segmentOffset)
 
                     actualLayer =
                         layerIndex + layerOffset
                 in
-                Array.set ((actualLayer * model.egg.verticalSegments) + actualSegment) model.currentColor colors
+                Array.set ((actualLayer * model.currentEggType.verticalSegments) + actualSegment) model.currentColor colors
 
             else
                 colors
@@ -212,6 +278,21 @@ paint model layerIndex segmentIndex =
     { colors = updatedColors
     , palette = updatePalette model.currentColor model.palette
     }
+
+
+setCurrentEggByLocalId : Url.Url -> Int -> Model -> Model
+setCurrentEggByLocalId url localId model =
+    let
+        eggInfo =
+            List.filter (\i -> i.localId == localId) model.eggList |> List.head |> Maybe.withDefault model.eggInfo
+
+        eggType =
+            Eggs.typeInfoForTypeId eggInfo.typeId
+
+        colors =
+            initColorsArray eggType
+    in
+    { model | url = url, eggInfo = eggInfo, currentEggType = eggType, colors = colors, viewMode = Edit, loadState = Loading }
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -229,9 +310,19 @@ update msg model =
                     ( model, Nav.load href )
 
         UrlChanged url ->
-            ( { model | url = url }
-            , Cmd.none
-            )
+            let
+                urlInfo =
+                    UrlParsers.parseUrl url
+            in
+            case urlInfo of
+                ImplicitUrl ->
+                    ( setCurrentEggByLocalId url model.implicitLocalId model, loadEgg <| Encoders.encodeUrlInfo urlInfo )
+
+                LocalUrl localId ->
+                    ( setCurrentEggByLocalId url localId model, loadEgg <| Encoders.encodeUrlInfo urlInfo )
+
+                _ ->
+                    ( { model | url = url }, Cmd.none )
 
         Paint layer segment ->
             let
@@ -242,11 +333,11 @@ update msg model =
                 | colors = colors
                 , palette = palette
               }
-            , Cmd.none
+            , saveEggAndList <| Encoders.encodeSaveEggAndListInfo { list = model.eggList, colors = colors, localId = model.eggInfo.localId }
             )
 
         SetRotation rotation ->
-            ( { model | rotation = remainderBy model.egg.verticalSegments <| rotation + model.egg.verticalSegments }
+            ( { model | rotation = remainderBy model.currentEggType.verticalSegments <| rotation + model.currentEggType.verticalSegments }
             , Cmd.none
             )
 
@@ -273,7 +364,7 @@ update msg model =
         RotateBarTouchStarted segment ->
             let
                 visibleSegment =
-                    toVisibleSegment model.egg model.rotation segment
+                    toVisibleSegment model.currentEggType model.rotation segment
             in
             ( { model
                 | pinnedSegment = Just visibleSegment
@@ -286,7 +377,7 @@ update msg model =
                 newRotation =
                     case model.pinnedSegment of
                         Just pinned ->
-                            remainderBy model.egg.verticalSegments <| model.egg.verticalSegments + pinned - segment
+                            remainderBy model.currentEggType.verticalSegments <| model.currentEggType.verticalSegments + pinned - segment
 
                         Nothing ->
                             model.rotation
@@ -308,7 +399,7 @@ update msg model =
                     paint model layerIndex segmentIndex
             in
             ( { model | colors = colors, palette = palette }
-            , Cmd.none
+            , saveEggAndList <| Encoders.encodeSaveEggAndListInfo { list = model.eggList, colors = colors, localId = model.eggInfo.localId }
             )
 
         EggTouchMoved ( layerIndex, segmentIndex ) ->
@@ -317,7 +408,7 @@ update msg model =
                     paint model layerIndex segmentIndex
             in
             ( { model | colors = colors, palette = palette }
-            , Cmd.none
+            , saveEggAndList <| Encoders.encodeSaveEggAndListInfo { list = model.eggList, colors = colors, localId = model.eggInfo.localId }
             )
 
         EggMouseDownInSegment layerIndex segmentIndex button ->
@@ -333,7 +424,7 @@ update msg model =
                     else if button == 1 then
                         let
                             visibleSegment =
-                                toVisibleSegment model.egg model.rotation segmentIndex
+                                toVisibleSegment model.currentEggType model.rotation segmentIndex
                         in
                         { model | pinnedSegment = Just visibleSegment }
 
@@ -343,22 +434,20 @@ update msg model =
             ( newModel, Cmd.none )
 
         EggMouseEnterInSegment layerIndex segmentIndex buttons ->
-            let
-                newModel =
-                    if buttons == 1 && model.autoDrawing then
-                        let
-                            { colors, palette } =
-                                paint model layerIndex segmentIndex
-                        in
-                        { model | colors = colors, palette = palette }
+            if buttons == 1 && model.autoDrawing then
+                let
+                    { colors, palette } =
+                        paint model layerIndex segmentIndex
+                in
+                ( { model | colors = colors, palette = palette }
+                , saveEggAndList <| Encoders.encodeSaveEggAndListInfo { list = model.eggList, colors = colors, localId = model.eggInfo.localId }
+                )
 
-                    else if buttons == 4 && Maybe.withDefault -1 model.pinnedSegment >= 0 then
-                        { model | rotation = Maybe.withDefault 0 model.pinnedSegment - segmentIndex }
+            else if buttons == 4 && Maybe.withDefault -1 model.pinnedSegment >= 0 then
+                ( { model | rotation = Maybe.withDefault 0 model.pinnedSegment - segmentIndex }, Cmd.none )
 
-                    else
-                        model
-            in
-            ( newModel, Cmd.none )
+            else
+                ( model, Cmd.none )
 
         ToggleBrush ->
             let
@@ -386,21 +475,65 @@ update msg model =
 
         NewEgg resolution ->
             let
-                egg =
-                    case resolution of
-                        "ld" ->
-                            Eggs.ld
-
-                        "hd" ->
-                            Eggs.hd
-
-                        _ ->
-                            Eggs.sd
+                eggType =
+                    Eggs.typeInfoForTypeId resolution
 
                 colors =
-                    initColorsArray egg
+                    initColorsArray eggType
+
+                localId =
+                    1 + (Maybe.withDefault 1 <| List.maximum <| List.map .localId model.eggList)
+
+                eggInfo =
+                    { localId = localId
+                    , key = Nothing
+                    , evidence = Nothing
+                    , typeId = eggType.id
+                    , palette = Just initialPalette
+                    , histogram = Nothing
+                    , local = True
+                    , title = ""
+                    , message = ""
+                    }
+
+                eggList =
+                    eggInfo :: model.eggList
             in
-            ( { model | egg = egg, colors = colors, viewMode = Edit }, Cmd.none )
+            ( { model | currentEggType = eggType, colors = colors, viewMode = Edit, eggList = eggList }
+            , saveEggAndList <| Encoders.encodeSaveEggAndListInfo { colors = colors, list = eggList, localId = localId }
+            )
+
+        EggLoaded jsonValue ->
+            let
+                decoded =
+                    Decode.decodeValue Decoders.decodeEggLoadedInfo jsonValue
+            in
+            case decoded of
+                Ok { eggInfoOpt, colors } ->
+                    let
+                        eggInfo =
+                            Maybe.withDefault model.eggInfo eggInfoOpt
+
+                        eggType =
+                            Eggs.typeInfoForTypeId eggInfo.typeId
+                    in
+                    ( { model
+                        | eggInfo = eggInfo
+                        , eggList = updateEggList eggInfoOpt model.eggList
+                        , currentEggType = eggType
+                        , colors =
+                            if Array.length colors == 0 then
+                                initColorsArray eggType
+
+                            else
+                                colors
+                        , loadState = Loaded
+                      }
+                    , Cmd.none
+                    )
+
+                Err _ ->
+                    ( model, Cmd.none )
 
 
 
@@ -414,6 +547,7 @@ subscriptions model =
         , eggTouchMoved EggTouchMoved
         , rotateBarTouchStarted RotateBarTouchStarted
         , rotateBarTouchMoved RotateBarTouchMoved
+        , eggLoaded EggLoaded
         ]
 
 
@@ -469,10 +603,10 @@ pictureView model =
         areaToShape layerIndex segmentIndex polygonPointsStr =
             let
                 visibleSegment =
-                    toVisibleSegment model.egg model.rotation segmentIndex
+                    toVisibleSegment model.currentEggType model.rotation segmentIndex
 
                 fillStr =
-                    Array.get ((layerIndex * model.egg.verticalSegments) + visibleSegment) model.colors |> Maybe.withDefault ""
+                    Array.get ((layerIndex * model.currentEggType.verticalSegments) + visibleSegment) model.colors |> Maybe.withDefault ""
 
                 baseColor =
                     if String.isEmpty fillStr then
@@ -482,7 +616,7 @@ pictureView model =
                         fillStr
 
                 color =
-                    adjustColor baseColor <| 0.6 + (toFloat segmentIndex / toFloat model.egg.verticalSegments)
+                    adjustColor baseColor <| 0.6 + (toFloat segmentIndex / toFloat model.currentEggType.verticalSegments)
             in
             polygon
                 [ points polygonPointsStr
@@ -504,7 +638,7 @@ pictureView model =
                 pointsList
 
         areaShapes =
-            List.concat <| List.indexedMap layerToShapes model.egg.polygonPoints
+            List.concat <| List.indexedMap layerToShapes model.currentEggType.polygonPoints
     in
     svg
         [ width "700"
@@ -518,7 +652,7 @@ pictureView model =
         areaShapes
 
 
-rotateBarView : Egg -> Int -> Html Msg
+rotateBarView : EggTypeInfo -> Int -> Html Msg
 rotateBarView egg rotation =
     let
         coefficientsToRectPosition index ( c1, c2 ) =
@@ -755,20 +889,29 @@ viewMainMenu model =
 
 viewEdit : Model -> Html Msg
 viewEdit model =
-    div [ class "view-edit notranslate", attribute "translate" "no" ]
-        [ div [ class "picture-container base-width" ]
-            [ div [ class "picture-absolute" ]
-                [ pictureView model
-                , div [ class "picture-controls-anchor" ]
-                    [ div [ class "picture-controls-line" ]
-                        [ Lazy.lazy2 brushSelectView model.brush model.currentColor
+    let
+        ready =
+            div [ class "view-edit notranslate", attribute "translate" "no" ]
+                [ div [ class "picture-container base-width" ]
+                    [ div [ class "picture-absolute" ]
+                        [ pictureView model
+                        , div [ class "picture-controls-anchor" ]
+                            [ div [ class "picture-controls-line" ]
+                                [ Lazy.lazy2 brushSelectView model.brush model.currentColor
+                                ]
+                            ]
                         ]
                     ]
+                , Lazy.lazy2 rotateBarView model.currentEggType model.rotation
+                , Lazy.lazy2 paletteView model.currentColor model.palette
                 ]
-            ]
-        , Lazy.lazy2 rotateBarView model.egg model.rotation
-        , Lazy.lazy2 paletteView model.currentColor model.palette
-        ]
+    in
+    case model.loadState of
+        Loaded ->
+            ready
+
+        _ ->
+            div [] []
 
 
 viewInfo : Model -> Html msg
@@ -818,13 +961,61 @@ viewShow model =
 
 viewList : Model -> Html Msg
 viewList model =
+    let
+        idView id typeId =
+            div [ class "egg-list-item-id" ] [ text <| String.fromInt id, span [ class "egg-type-id" ] [ text typeId ] ]
+
+        titleView title =
+            div [ class "egg-list-item-name" ]
+                [ text <|
+                    if String.isEmpty <| String.trim title then
+                        "(bez názvu)"
+
+                    else
+                        title
+                ]
+
+        histogramColor color =
+            div
+                [ class "egg-list-item-histogram-color"
+                , style "background"
+                    (if String.isEmpty <| String.trim color then
+                        eggColor
+
+                     else
+                        color
+                    )
+                ]
+                []
+
+        histogramView histogram =
+            case histogram of
+                Just colorList ->
+                    div [ class "egg-list-item-histogram" ] (List.map histogramColor colorList)
+
+                Nothing ->
+                    div [ class "egg-list-item-histogram" ] [ histogramColor eggColor ]
+
+        eggHref eggInfo =
+            String.concat [ "#moje/", String.fromInt eggInfo.localId ]
+
+        eggItemView eggInfo =
+            li [ class "egg-list-item" ]
+                [ a [ href <| eggHref eggInfo, class "egg-list-item-link" ]
+                    [ idView eggInfo.localId eggInfo.typeId
+                    , titleView eggInfo.title
+                    , histogramView eggInfo.histogram
+                    ]
+                ]
+
+        eggListView =
+            ul [ class "egg-list" ] (List.map eggItemView model.eggList)
+    in
     div [ class "view-info view-cover notranslate", attribute "translate" "no" ]
         [ div [ class "base-width" ]
             [ div [ class "view-info-outer" ]
                 [ div [ class "view-info-top" ]
                     [ h1 [] [ text "Moje kraslice" ]
-                    , p [] [ text "[ Vývojová, nedokončená verze! ]" ]
-                    , p [] [ text "Správa kraslic ještě není hotová :-(" ]
                     , h2 [] [ text "Nová kraslice" ]
                     , p [] [ text "Zvolte rozlišení:" ]
                     , ul []
@@ -832,6 +1023,8 @@ viewList model =
                         , li [] [ button [ class "resolution-button", onClick <| NewEgg "sd" ] [ text "Polohrubé" ] ]
                         , li [] [ button [ class "resolution-button", onClick <| NewEgg "hd" ] [ text "Hladké" ] ]
                         ]
+                    , h2 [] [ text "Dříve otevřené kraslice" ]
+                    , eggListView
                     ]
                 ]
             ]

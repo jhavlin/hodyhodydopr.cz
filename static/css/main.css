@@ -224,3 +224,52 @@ h1.site-title {
     padding: 0.4rem;
     width: 8em;
 }
+
+.egg-list {
+    list-style-type: none;
+    margin: 0;
+    padding: 0;
+}
+
+.egg-list-item {
+    margin: 0.5rem 0.2rem;
+    padding: 0;
+    border: 1px lightgray solid;
+}
+.egg-list-item:hover {
+    border-color: black;
+}
+
+.egg-list-item-id {
+    color: gray;
+    padding: 0.25rem;
+}
+
+.egg-list-item-name {
+    padding: 0.25rem;
+}
+
+.egg-list-item-histogram {
+    height: 0.5rem;
+    width: 100%;
+    display: flex;
+}
+
+.egg-list-item-histogram-color {
+    flex: 1 auto;
+}
+
+.egg-type-id {
+    display: inline-block;
+    background: darkgray;
+    color: white;
+    font-size: 80%;
+    padding: 0.25rem;
+    margin: 0 0.5rem;
+    border-radius: 0.1rem;
+}
+
+.egg-list-item-link {
+    text-decoration: none;
+    color: inherit;
+}

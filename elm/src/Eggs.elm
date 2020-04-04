@@ -1,4 +1,4 @@
-module Eggs exposing (Area, Egg, Point, hd, ld, sd)
+module Eggs exposing (Area, EggTypeInfo, Point, hd, ld, sd, typeInfoForTypeId)
 
 
 type alias Point =
@@ -13,7 +13,7 @@ type alias Area =
     }
 
 
-type alias Egg =
+type alias EggTypeInfo =
     { id : String
     , verticalSegments : Int
     , verticalCoefficients : List Float
@@ -85,7 +85,7 @@ createPolygonPoints areas =
     List.map mapAreaList areas
 
 
-makeEggInfo : String -> Int -> List ( Int, Int ) -> Egg
+makeEggInfo : String -> Int -> List ( Int, Int ) -> EggTypeInfo
 makeEggInfo id verticalSegments layerBorders =
     let
         verticalCoefficients =
@@ -122,7 +122,7 @@ makeEggInfo id verticalSegments layerBorders =
     }
 
 
-ld : Egg
+ld : EggTypeInfo
 ld =
     makeEggInfo "ld"
         32
@@ -144,7 +144,7 @@ ld =
         ]
 
 
-sd : Egg
+sd : EggTypeInfo
 sd =
     makeEggInfo "sd"
         64
@@ -179,7 +179,7 @@ sd =
         ]
 
 
-hd : Egg
+hd : EggTypeInfo
 hd =
     makeEggInfo "hd"
         128
@@ -236,3 +236,19 @@ hd =
         , ( 140, 780 ) -- 27
         , ( 41, 810 ) -- 28
         ]
+
+
+typeInfoForTypeId : String -> EggTypeInfo
+typeInfoForTypeId typeId =
+    case typeId of
+        "ld" ->
+            ld
+
+        "sd" ->
+            sd
+
+        "hd" ->
+            hd
+
+        _ ->
+            sd
