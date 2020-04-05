@@ -230,7 +230,7 @@ currentPalette model =
     Maybe.withDefault initialPalette (currentEggInfo model).palette
 
 
-paint : Model -> RenderData -> List String -> Int -> Int -> { colors : Array String, palette : List String }
+paint : Model -> RenderData -> List String -> Int -> Int -> { colors : Array String, palette : List String, histogram : List String }
 paint model { colors, eggType } palette layerIndex segmentIndex =
     let
         ( a, r ) =
@@ -283,18 +283,26 @@ paint model { colors, eggType } palette layerIndex segmentIndex =
 
         updatedColors =
             List.foldl layerFn colors nearLayers
+
+        step =
+            Array.length updatedColors // 10
+
+        -- not an actual histogram yet, rather samples of colors
+        histogram =
+            List.range 0 9 |> List.map (\i -> i * step) |> List.map (\i -> Array.get i updatedColors) |> List.map (Maybe.withDefault "")
     in
     { colors = updatedColors
     , palette = updatePalette model.currentColor palette
+    , histogram = histogram
     }
 
 
-updateModelAfterPaint : Model -> { colors : Array String, palette : List String } -> Model
-updateModelAfterPaint model { colors, palette } =
+updateModelAfterPaint : Model -> { colors : Array String, palette : List String, histogram : List String } -> Model
+updateModelAfterPaint model { colors, palette, histogram } =
     case model.eggData of
         Local { localId, renderData } ->
             { model
-                | eggList = updateCurrentEggInfo (\i -> { i | palette = Just palette }) model.eggList
+                | eggList = updateCurrentEggInfo (\i -> { i | palette = Just palette, histogram = Just histogram }) model.eggList
                 , eggData = Local { localId = localId, renderData = { renderData | colors = colors } }
             }
 
@@ -369,10 +377,10 @@ update msg model =
             case model.eggData of
                 Local { localId, renderData } ->
                     let
-                        { colors, palette } =
+                        { colors, palette, histogram } =
                             paint model renderData (currentPalette model) layer segment
                     in
-                    ( updateModelAfterPaint model { colors = colors, palette = palette }
+                    ( updateModelAfterPaint model { colors = colors, palette = palette, histogram = histogram }
                     , saveEggAndList <| Encoders.encodeSaveEggAndListInfo { list = model.eggList, colors = colors, localId = localId }
                     )
 
@@ -474,10 +482,10 @@ update msg model =
             case model.eggData of
                 Local { localId, renderData } ->
                     let
-                        { colors, palette } =
+                        { colors, palette, histogram } =
                             paint model renderData (currentPalette model) layerIndex segmentIndex
                     in
-                    ( updateModelAfterPaint model { colors = colors, palette = palette }
+                    ( updateModelAfterPaint model { colors = colors, palette = palette, histogram = histogram }
                     , saveEggAndList <| Encoders.encodeSaveEggAndListInfo { list = model.eggList, colors = colors, localId = localId }
                     )
 
@@ -488,10 +496,10 @@ update msg model =
             case model.eggData of
                 Local { localId, renderData } ->
                     let
-                        { colors, palette } =
+                        { colors, palette, histogram } =
                             paint model renderData (currentPalette model) layerIndex segmentIndex
                     in
-                    ( updateModelAfterPaint model { colors = colors, palette = palette }
+                    ( updateModelAfterPaint model { colors = colors, palette = palette, histogram = histogram }
                     , saveEggAndList <| Encoders.encodeSaveEggAndListInfo { list = model.eggList, colors = colors, localId = localId }
                     )
 
@@ -503,10 +511,10 @@ update msg model =
                 Local { localId, renderData } ->
                     if button == 0 then
                         let
-                            { colors, palette } =
+                            { colors, palette, histogram } =
                                 paint model renderData (currentPalette model) layerIndex segmentIndex
                         in
-                        ( updateModelAfterPaint model { colors = colors, palette = palette }
+                        ( updateModelAfterPaint model { colors = colors, palette = palette, histogram = histogram }
                         , saveEggAndList <| Encoders.encodeSaveEggAndListInfo { list = model.eggList, colors = colors, localId = localId }
                         )
 
@@ -535,10 +543,10 @@ update msg model =
                 Local { localId, renderData } ->
                     if buttons == 1 && model.autoDrawing then
                         let
-                            { colors, palette } =
+                            { colors, palette, histogram } =
                                 paint model renderData (currentPalette model) layerIndex segmentIndex
                         in
-                        ( updateModelAfterPaint model { colors = colors, palette = palette }
+                        ( updateModelAfterPaint model { colors = colors, palette = palette, histogram = histogram }
                         , saveEggAndList <| Encoders.encodeSaveEggAndListInfo { list = model.eggList, colors = colors, localId = localId }
                         )
 
@@ -548,7 +556,7 @@ update msg model =
                     else
                         ( model, Cmd.none )
 
-                Remote { renderData } ->
+                Remote _ ->
                     if buttons > 0 && Maybe.withDefault -1 model.pinnedSegment >= 0 then
                         ( { model | rotation = Maybe.withDefault 0 model.pinnedSegment - segmentIndex }, Cmd.none )
 
