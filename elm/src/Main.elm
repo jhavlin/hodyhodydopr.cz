@@ -628,7 +628,10 @@ update msg model =
                 , eggData = eggData
                 , viewMode = Picture
               }
-            , saveEggAndList <| Encoders.encodeSaveEggAndListInfo { colors = colors, list = eggList, localId = localId }
+            , Cmd.batch
+                [ saveEggAndList <| Encoders.encodeSaveEggAndListInfo { colors = colors, list = eggList, localId = localId }
+                , Nav.pushUrl model.key (String.concat [ "#moje/", String.fromInt localId ])
+                ]
             )
 
         LocalEggLoaded jsonValue ->
