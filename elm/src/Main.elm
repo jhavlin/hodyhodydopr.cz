@@ -4,6 +4,7 @@ import Array exposing (Array)
 import Browser
 import Browser.Navigation as Nav
 import CustomEvents exposing (onMouseDownWithButton, onMouseEnterWithButtons)
+import Debug
 import Decoders
 import Eggs exposing (EggTypeInfo)
 import Encoders
@@ -719,7 +720,18 @@ update msg model =
                     ( model, Cmd.none )
 
         RemoteEggLoaded jsonValue ->
-            ( model, Cmd.none )
+            let
+                decodeResult = Decode.decodeValue Decoders.decodeRemoteEggLoadedInfo jsonValue
+            in
+            case decodeResult of
+                Ok { colors, typeId, title, message } ->
+                    let
+                        eggType = Eggs.typeInfoForTypeId typeId
+                        eggData = Remote { renderData = { colors = colors, eggType = eggType }, title = title, message = message }
+                    in
+                    ( { model | eggData = eggData }, initTouch () )
+
+                _ -> ( model, Cmd.none )
 
         SetTitle title ->
             let
@@ -1177,8 +1189,8 @@ viewPicture model =
                 [ Lazy.lazy2 brushSelectView model.brush model.currentColor ]
                 [ Lazy.lazy2 paletteView model.currentColor (currentPalette model) ]
 
-        Remote { renderData } ->
-            ready renderData [] []
+        Remote { renderData, title } ->
+            ready renderData [] [ div [ class "picture-bottom-title" ] [ text title ] ]
 
         Loading ->
             div [] []
@@ -1298,9 +1310,6 @@ viewList model =
 viewShare : Model -> Html Msg
 viewShare model =
     let
-        heading =
-            h1 [] [ text "Uložit & sdílet" ]
-
         eggInfo =
             currentEggInfo model
 
@@ -1324,7 +1333,7 @@ viewShare model =
         content =
             case model.eggData of
                 Local _ ->
-                    [ heading
+                    [ h1 [] [ text "Uložit & sdílet" ]
                     , div [ class "share-label" ] [ text "Název" ]
                     , input [ class "share-input", type_ "text", onInput SetTitle, value eggInfo.title ] []
                     , div [ class "share-label" ] [ text "Vzkaz" ]
@@ -1346,8 +1355,12 @@ viewShare model =
                             div [] []
                     ]
 
-                Remote _ ->
-                    [ heading
+                Remote { title, message } ->
+                    [ h1 [] [ text "Informace o kraslici" ]
+                    , div [ class "share-label" ] [ text "Název:" ]
+                    , p [] [ text title ]
+                    , div [ class "share-label" ] [ text "Vzkaz:" ]
+                    , p [] [ text message]
                     ]
 
                 _ ->

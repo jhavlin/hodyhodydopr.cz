@@ -87,9 +87,14 @@
             }
         }
 
-        function loadEgg(urlInfo) {
+        async function loadEgg(urlInfo) {
             if (urlInfo.urlType === 'show') {
-                // TODO
+                const result = await get('/data/v01/get/' + urlInfo.key);
+                const json = await decryptJson(result.encryptedData, result.iv, urlInfo.secret);
+                if (json.title) {
+                    document.title = json.title;
+                }
+                app.ports.remoteEggLoaded.send(json);
             } else if (urlInfo.urlType === 'local' || urlInfo.urlType === 'implicit') {
                 let localId;
                 if (urlInfo.localId) {

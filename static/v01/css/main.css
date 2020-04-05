@@ -127,6 +127,11 @@ h1.site-title {
     max-height: calc(100vh - 14rem); /* Grrrr, needed on iPhone Safari */
 }
 
+.picture-bottom-title {
+    font-size: 20px;
+    color: white;
+}
+
 .egg-area:hover {
     stroke: black;
     stroke-width: 1.5;

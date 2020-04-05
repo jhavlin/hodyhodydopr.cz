@@ -52,8 +52,10 @@ decodeLocalEggLoadedInfo =
 decodeRemoteEggLoadedInfo : D.Decoder RemoteEggLoadedInfo
 decodeRemoteEggLoadedInfo =
     D.succeed RemoteEggLoadedInfo
-        |> required "eggInfo" decodeEggInfo
         |> required "colors" (D.array D.string)
+        |> required "typeId" D.string
+        |> required "title" D.string
+        |> required "message" D.string
 
 
 decodeSavedOnlineData : D.Decoder SavedOnlineData
