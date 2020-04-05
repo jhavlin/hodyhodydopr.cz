@@ -114,18 +114,26 @@
         });
 
         app.ports.initApp.subscribe(function(urlInfo) {
-            const rotateBar = document.getElementById('rotate-bar');
-            if (rotateBar) {
-                rotateBar.addEventListener('touchstart', handleRotateBarTouchStart);
-                rotateBar.addEventListener('touchmove', handleRotateBarTouchMove);
-            }
-            const pictureEgg = document.getElementById('picture-egg');
-            if (pictureEgg) {
-                pictureEgg.addEventListener('touchstart', handleEggTouchStart);
-                pictureEgg.addEventListener('touchmove', handleEggTouchMove);
-            }
-
             loadEgg(urlInfo);
+        });
+
+        app.ports.initTouch.subscribe(function() {
+            setTimeout(function() {
+                const rotateBar = document.getElementById('rotate-bar');
+                if (rotateBar) {
+                    rotateBar.removeEventListener('touchstart', handleRotateBarTouchStart);
+                    rotateBar.addEventListener('touchstart', handleRotateBarTouchStart);
+                    rotateBar.removeEventListener('touchmove', handleRotateBarTouchMove);
+                    rotateBar.addEventListener('touchmove', handleRotateBarTouchMove);
+                }
+                const pictureEgg = document.getElementById('picture-egg');
+                if (pictureEgg) {
+                    pictureEgg.removeEventListener('touchstart', handleEggTouchStart);
+                    pictureEgg.addEventListener('touchstart', handleEggTouchStart);
+                    pictureEgg.removeEventListener('touchmove', handleEggTouchMove);
+                    pictureEgg.addEventListener('touchmove', handleEggTouchMove);
+                }
+            }, 100);
         });
 
         app.ports.saveEggAndList.subscribe(function({ localId, colors, list }) {

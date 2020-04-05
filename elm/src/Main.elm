@@ -26,6 +26,9 @@ import UrlParsers
 port initApp : Encode.Value -> Cmd msg
 
 
+port initTouch : () -> Cmd msg
+
+
 
 -- port saveList : Encode.Value -> Cmd msg
 
@@ -633,7 +636,7 @@ update msg model =
                 decoded =
                     Decode.decodeValue Decoders.decodeLocalEggLoadedInfo jsonValue
             in
-            case ( decoded, Debug.log "" <| List.head model.eggList ) of
+            case ( decoded, List.head model.eggList ) of
                 ( Ok { localId, colors }, Just eggInfo ) ->
                     if eggInfo.localId == localId then
                         let
@@ -652,7 +655,7 @@ update msg model =
                             , rotation = 1
                             , viewMode = Picture
                           }
-                        , Cmd.none
+                        , initTouch ()
                         )
 
                     else
