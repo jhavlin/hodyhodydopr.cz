@@ -4,5 +4,5 @@ inotifywait -m -r ./src --format '%w%f' -e modify |
         echo "> Changes detected >>>>"
         echo $file
         #   elm-format --yes src/
-        elm make src/Main.elm --output ../static/js/main.elm.js
+        elm make src/Main.elm --output ../static/v01/js/main.elm.js
     done
