@@ -1,11 +1,23 @@
-module Types exposing (EggInfo, EggLoadedInfo, Flags, FullEggInfo, SaveEggAndListInfo, UrlInfo(..), emptyEggInfo)
+module Types exposing
+    ( EggInfo
+    , Flags
+    , FullEggInfo
+    , LocalEggLoadedInfo
+    , RemoteEggLoadedInfo
+    , RenderData
+    , SaveEggAndListInfo
+    , UrlInfo(..)
+    , emptyEggInfo
+    )
 
 import Array exposing (Array)
+import Eggs
 
 
 type alias EggInfo =
     { localId : Int
     , key : Maybe String
+    , secret : Maybe String
     , evidence : Maybe String
     , typeId : String
     , palette : Maybe (List String)
@@ -30,13 +42,18 @@ type alias Flags =
 
 type UrlInfo
     = LocalUrl Int
-    | EditUrl String String
-    | ShowUrl String
+    | ShowUrl String String
     | ImplicitUrl
 
 
-type alias EggLoadedInfo =
-    { eggInfoOpt : Maybe EggInfo
+type alias LocalEggLoadedInfo =
+    { localId : Int
+    , colors : Array String
+    }
+
+
+type alias RemoteEggLoadedInfo =
+    { eggInfo : EggInfo
     , colors : Array String
     }
 
@@ -48,10 +65,17 @@ type alias SaveEggAndListInfo =
     }
 
 
+type alias RenderData =
+    { colors : Array String
+    , eggType : Eggs.EggTypeInfo
+    }
+
+
 emptyEggInfo : EggInfo
 emptyEggInfo =
     { localId = 1
     , key = Nothing
+    , secret = Nothing
     , evidence = Nothing
     , typeId = "sd"
     , palette = Nothing

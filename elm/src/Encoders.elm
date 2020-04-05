@@ -32,16 +32,22 @@ encodeUrlInfo : UrlInfo -> E.Value
 encodeUrlInfo urlInfo =
     case urlInfo of
         LocalUrl localId ->
-            E.object [ ( "localId", E.int localId ) ]
+            E.object
+                [ ( "urlType", E.string "local" )
+                , ( "localId", E.int localId )
+                ]
 
         ImplicitUrl ->
-            E.object []
+            E.object
+                [ ( "urlType", E.string "implicit" )
+                ]
 
-        EditUrl key evidence ->
-            E.object [ ( "key", E.string key ), ( "evidence", E.string evidence ) ]
-
-        ShowUrl key ->
-            E.object [ ( "key", E.string key ) ]
+        ShowUrl key secret ->
+            E.object
+                [ ( "urlType", E.string "show" )
+                , ( "key", E.string key )
+                , ( "secret", E.string secret )
+                ]
 
 
 encodeSaveEggAndListInfo : SaveEggAndListInfo -> E.Value

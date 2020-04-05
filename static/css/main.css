@@ -35,6 +35,7 @@ div.main-area {
 
 div.main-menu {
     background: var(--easter-green);
+    user-select: none;
 }
 
 div.main-menu-inner {
@@ -93,6 +94,7 @@ h1.site-title {
     height: 100%;
     width: 100%;
     position: relative;
+    user-select: none;
 }
 
 .picture-absolute { /* enforce correct positioning on Firefox */
@@ -137,6 +139,7 @@ h1.site-title {
     max-width: 100vw;
     width: 100%;
     margin: 0.5rem 0;
+    user-select: none;
 }
 
 .palette-inner {

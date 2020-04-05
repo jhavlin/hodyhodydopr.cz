@@ -88,14 +88,18 @@
         }
 
         function loadEgg(urlInfo) {
-            let localId;
-            if (urlInfo.localId) {
-                localId = urlInfo.localId;
-            } else {
-                localId = parseInt(localStorage.getItem(LAST_ID) || 1);
+            if (urlInfo.urlType === 'show') {
+                // TODO
+            } else if (urlInfo.urlType === 'local' || urlInfo.urlType === 'implicit') {
+                let localId;
+                if (urlInfo.localId) {
+                    localId = urlInfo.localId;
+                } else {
+                    localId = parseInt(localStorage.getItem(LAST_ID) || 1);
+                }
+                const colors = getLocalJson(`l-${localId}`, []);
+                app.ports.localEggLoaded.send({ localId, colors });
             }
-            const colors = getLocalJson(`l-${localId}`, []);
-            app.ports.eggLoaded.send({ colors });
         }
 
         const list = getLocalJson(LIST, [ INITIAL_EGG ]);

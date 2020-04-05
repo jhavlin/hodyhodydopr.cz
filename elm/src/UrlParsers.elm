@@ -24,11 +24,8 @@ parseUrl url =
                 Just localId ->
                     LocalUrl localId
 
-        "maluj" :: key :: evidence :: [] ->
-            EditUrl key evidence
-
-        "ukaz" :: key :: [] ->
-            ShowUrl key
+        "ukaz" :: key :: secret :: [] ->
+            ShowUrl key secret
 
         _ ->
             ImplicitUrl
