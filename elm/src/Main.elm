@@ -4,13 +4,12 @@ import Array exposing (Array)
 import Browser
 import Browser.Navigation as Nav
 import CustomEvents exposing (onMouseDownWithButton, onMouseEnterWithButtons)
-import Debug
 import Decoders
 import Eggs exposing (EggTypeInfo)
 import Encoders
 import Heroicons.Solid as HIcons
-import Html exposing (Html, a, button, div, h1, h2, input, li, p, span, text, ul)
-import Html.Attributes exposing (attribute, class, href, id, style, target, type_)
+import Html exposing (Html, a, button, div, h1, h2, input, li, p, span, text, textarea, ul)
+import Html.Attributes exposing (attribute, class, href, id, readonly, style, target, type_, value)
 import Html.Events exposing (onClick, onInput, onMouseDown, onMouseLeave, onMouseUp)
 import Html.Lazy as Lazy
 import Json.Decode as Decode
@@ -29,14 +28,19 @@ port initApp : Encode.Value -> Cmd msg
 port initTouch : () -> Cmd msg
 
 
-
--- port saveList : Encode.Value -> Cmd msg
+port saveList : Encode.Value -> Cmd msg
 
 
 port saveEggAndList : Encode.Value -> Cmd msg
 
 
 port loadEgg : Encode.Value -> Cmd msg
+
+
+port saveOnline : Encode.Value -> Cmd msg
+
+
+port copyToClipboard : String -> Cmd msg
 
 
 
@@ -61,6 +65,9 @@ port eggTouchStarted : (( Int, Int ) -> msg) -> Sub msg
 port eggTouchMoved : (( Int, Int ) -> msg) -> Sub msg
 
 
+port savedOnline : (Decode.Value -> msg) -> Sub msg
+
+
 
 -- MAIN
 
@@ -83,6 +90,7 @@ main =
 
 type alias Model =
     { key : Nav.Key
+    , baseUrl : String
     , urlInfo : UrlInfo
     , eggList : List EggInfo
     , eggData : EggData
@@ -95,6 +103,7 @@ type alias Model =
     , pinnedSegment : Maybe Int
     , viewMode : ViewMode
     , time : Int
+    , saveState : SaveState
     }
 
 
@@ -119,9 +128,41 @@ type Brush
     | B5
 
 
+type SaveState
+    = None
+    | Saving
+
+
 initialPalette : List String
 initialPalette =
     [ "#53b9e9", "#fd6617", "#dd5875", "#8a75ad", "#fffc3f", "#ffffff", "#000000" ]
+
+
+asBaseUrl : Url.Url -> String
+asBaseUrl url =
+    let
+        lastSlash =
+            url.path |> String.indices "/" |> List.reverse |> List.head
+
+        basePath =
+            case lastSlash of
+                Just index ->
+                    String.slice 0 (index + 1) url.path
+
+                Nothing ->
+                    url.path
+    in
+    String.concat
+        [ case url.protocol of
+            Url.Http ->
+                "http://"
+
+            Url.Https ->
+                "https://"
+        , url.host
+        , Maybe.withDefault "" <| Maybe.map (\p -> ":" ++ String.fromInt p) url.port_
+        , basePath
+        ]
 
 
 init : Decode.Value -> Url.Url -> Nav.Key -> ( Model, Cmd msg )
@@ -139,6 +180,7 @@ init flagsJson url key =
 
         model =
             { key = key
+            , baseUrl = asBaseUrl url
             , urlInfo = urlInfo
             , rotation = 0
             , rotating = False
@@ -151,6 +193,7 @@ init flagsJson url key =
             , eggData = eggData
             , implicitLocalId = decoded.implicitLocalId
             , time = 0
+            , saveState = None
             }
     in
     ( model, initApp <| Encoders.encodeUrlInfo urlInfo )
@@ -191,7 +234,12 @@ type Msg
     | NewEgg String
     | LocalEggLoaded Decode.Value
     | RemoteEggLoaded Decode.Value
+    | SetTitle String
+    | SetMessage String
     | NoOp
+    | SaveOnline
+    | SavedOnline Decode.Value
+    | CopyToClipboard String
 
 
 updateEggList : Maybe EggInfo -> List EggInfo -> List EggInfo
@@ -216,6 +264,7 @@ updatePalette color palette =
         color :: List.take (List.length palette - 1) palette
 
 
+currentEggInfo : Model -> EggInfo
 currentEggInfo model =
     Maybe.withDefault emptyEggInfo <| List.head model.eggList
 
@@ -229,6 +278,7 @@ updateCurrentEggInfo fn eggList =
     fn first :: (Maybe.withDefault [] <| List.tail eggList)
 
 
+currentPalette : Model -> List String
 currentPalette model =
     Maybe.withDefault initialPalette (currentEggInfo model).palette
 
@@ -609,6 +659,7 @@ update msg model =
                     , key = Nothing
                     , secret = Nothing
                     , evidence = Nothing
+                    , onlineVersion = 0
                     , typeId = eggType.id
                     , palette = Just initialPalette
                     , histogram = Nothing
@@ -670,13 +721,83 @@ update msg model =
         RemoteEggLoaded jsonValue ->
             ( model, Cmd.none )
 
+        SetTitle title ->
+            let
+                eggList =
+                    updateCurrentEggInfo (\i -> { i | title = title }) model.eggList
+            in
+            case model.eggData of
+                Local _ ->
+                    ( { model | eggList = eggList }, saveList <| Encoders.encodeEggList eggList )
+
+                _ ->
+                    ( model, Cmd.none )
+
+        SetMessage message ->
+            let
+                eggList =
+                    updateCurrentEggInfo (\i -> { i | message = message }) model.eggList
+            in
+            case model.eggData of
+                Local _ ->
+                    ( { model | eggList = eggList }, saveList <| Encoders.encodeEggList eggList )
+
+                _ ->
+                    ( model, Cmd.none )
+
+        SaveOnline ->
+            case model.eggData of
+                Local { renderData } ->
+                    let
+                        commandData =
+                            Encoders.encodeSaveOnlineData
+                                { colors = renderData.colors
+                                , eggInfo = currentEggInfo model
+                                }
+                    in
+                    ( { model | saveState = Saving }, saveOnline commandData )
+
+                _ ->
+                    ( model, Cmd.none )
+
+        SavedOnline jsonValue ->
+            let
+                decoded =
+                    Decode.decodeValue Decoders.decodeSavedOnlineData jsonValue
+            in
+            case decoded of
+                Ok { key, secret, evidence, onlineVersion, localId } ->
+                    if localId == (currentEggInfo model).localId then
+                        let
+                            updateInfo eggInfo =
+                                { eggInfo
+                                    | key = Just key
+                                    , secret = Just secret
+                                    , evidence = Just evidence
+                                    , onlineVersion = onlineVersion
+                                }
+
+                            eggList =
+                                updateCurrentEggInfo updateInfo model.eggList
+                        in
+                        ( { model | eggList = eggList, saveState = None }, saveList <| Encoders.encodeEggList eggList )
+
+                    else
+                        ( model, Cmd.none )
+
+                _ ->
+                    ( model, Cmd.none )
+
+        CopyToClipboard text ->
+            ( model, copyToClipboard text )
+
 
 
 -- SUBSCRIPTIONS
 
 
 subscriptions : Model -> Sub Msg
-subscriptions model =
+subscriptions _ =
     Sub.batch
         [ eggTouchStarted EggTouchStarted
         , eggTouchMoved EggTouchMoved
@@ -684,6 +805,7 @@ subscriptions model =
         , rotateBarTouchMoved RotateBarTouchMoved
         , localEggLoaded LocalEggLoaded
         , remoteEggLoaded RemoteEggLoaded
+        , savedOnline SavedOnline
         ]
 
 
@@ -1050,7 +1172,7 @@ viewPicture model =
                 )
     in
     case model.eggData of
-        Local { localId, renderData } ->
+        Local { renderData } ->
             ready renderData
                 [ Lazy.lazy2 brushSelectView model.brush model.currentColor ]
                 [ Lazy.lazy2 paletteView model.currentColor (currentPalette model) ]
@@ -1063,12 +1185,11 @@ viewPicture model =
 
 
 viewInfo : Model -> Html msg
-viewInfo model =
+viewInfo _ =
     let
         top =
             div [ class "view-info-top" ]
                 [ h1 [] [ text "Bezkontaktní Velikonoce" ]
-                , p [] [ text "[ Vývojová, nedokončená verze! ]" ]
                 , p []
                     [ text "Navrhněte kraslici pro ty, které nemůžete podarovat osobně. "
                     ]
@@ -1100,11 +1221,6 @@ viewInfo model =
                 ]
             ]
         ]
-
-
-viewShow : Model -> Html msg
-viewShow model =
-    div [] []
 
 
 viewList : Model -> Html Msg
@@ -1179,16 +1295,69 @@ viewList model =
         ]
 
 
-viewShare : Model -> Html msg
+viewShare : Model -> Html Msg
 viewShare model =
+    let
+        heading =
+            h1 [] [ text "Uložit & sdílet" ]
+
+        eggInfo =
+            currentEggInfo model
+
+        shareUrl key secret =
+            String.concat [ model.baseUrl, "koleda.html#ukaz/", key, "/", secret ]
+
+        sharingInfo key secret =
+            div []
+                [ div [] [ text "Zkopírujte níže uvedený odkaz a pošlete jej koledníkům třeba e-mailem." ]
+                , div [ class "share-url-line" ]
+                    [ input [ class "share-url-input", readonly True, value <| shareUrl key secret ] []
+                    , button [ class "share-url-button", onClick <| CopyToClipboard <| shareUrl key secret ]
+                        [ HIcons.clipboardCopy [ SAttr.class "share-icon-clipboard" ] ]
+                    ]
+                , div []
+                    [ text "Nebo můžete jednoduše získat snímek obrazovky a zveřejnit ho na sociálních sítích, "
+                    , text "ale nezapomeňte z\u{00A0}obrázku odstranit případné osobní údaje."
+                    ]
+                ]
+
+        content =
+            case model.eggData of
+                Local _ ->
+                    [ heading
+                    , div [ class "share-label" ] [ text "Název" ]
+                    , input [ class "share-input", type_ "text", onInput SetTitle, value eggInfo.title ] []
+                    , div [ class "share-label" ] [ text "Vzkaz" ]
+                    , textarea [ class "share-input", onInput SetMessage, value eggInfo.message ] []
+                    , button [ class "share-button", onClick SaveOnline ]
+                        [ text <|
+                            case model.saveState of
+                                None ->
+                                    "Uložit"
+
+                                Saving ->
+                                    "Ukládám"
+                        ]
+                    , case ( eggInfo.key, eggInfo.secret ) of
+                        ( Just key, Just secret ) ->
+                            sharingInfo key secret
+
+                        _ ->
+                            div [] []
+                    ]
+
+                Remote _ ->
+                    [ heading
+                    ]
+
+                _ ->
+                    []
+    in
     div [ class "view-info view-cover notranslate", attribute "translate" "no" ]
         [ div [ class "base-width" ]
             [ div [ class "view-info-outer" ]
                 [ div [ class "view-info-top" ]
-                    [ h1 [] [ text "Uložit & sdílet" ]
-                    , p [] [ text "[ Vývojová, nedokončená verze! ]" ]
-                    , p [] [ text "Ukládání a sdílení není ještě hotové :-(" ]
-                    ]
+                    content
                 ]
             ]
         ]

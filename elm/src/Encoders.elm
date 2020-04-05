@@ -1,5 +1,6 @@
-module Encoders exposing (encodeFullEggInfo, encodeSaveEggAndListInfo, encodeUrlInfo)
+module Encoders exposing (encodeEggList, encodeFullEggInfo, encodeSaveEggAndListInfo, encodeSaveOnlineData, encodeUrlInfo)
 
+import Array exposing (Array)
 import Json.Encode as E
 import Types exposing (EggInfo, FullEggInfo, SaveEggAndListInfo, UrlInfo(..))
 
@@ -9,7 +10,9 @@ encodeEggInfo eggInfo =
     E.object
         [ ( "localId", E.int eggInfo.localId )
         , ( "key", encodeMaybe E.string eggInfo.key )
+        , ( "secret", encodeMaybe E.string eggInfo.secret )
         , ( "evidence", encodeMaybe E.string eggInfo.evidence )
+        , ( "onlineVersion", E.int eggInfo.onlineVersion )
         , ( "typeId", E.string eggInfo.typeId )
         , ( "palette", encodeMaybe (E.list E.string) eggInfo.palette )
         , ( "histogram", encodeMaybe (E.list E.string) eggInfo.histogram )
@@ -50,6 +53,11 @@ encodeUrlInfo urlInfo =
                 ]
 
 
+encodeEggList : List EggInfo -> E.Value
+encodeEggList eggList =
+    E.list encodeEggInfo eggList
+
+
 encodeSaveEggAndListInfo : SaveEggAndListInfo -> E.Value
 encodeSaveEggAndListInfo info =
     E.object
@@ -67,3 +75,11 @@ encodeMaybe fn maybe =
 
         Nothing ->
             E.null
+
+
+encodeSaveOnlineData : { colors : Array String, eggInfo : EggInfo } -> E.Value
+encodeSaveOnlineData { colors, eggInfo } =
+    E.object
+        [ ( "eggInfo", encodeEggInfo eggInfo )
+        , ( "colors", E.array E.string colors )
+        ]

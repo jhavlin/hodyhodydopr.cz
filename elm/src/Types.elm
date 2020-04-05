@@ -6,6 +6,7 @@ module Types exposing
     , RemoteEggLoadedInfo
     , RenderData
     , SaveEggAndListInfo
+    , SavedOnlineData
     , UrlInfo(..)
     , emptyEggInfo
     )
@@ -19,6 +20,7 @@ type alias EggInfo =
     , key : Maybe String
     , secret : Maybe String
     , evidence : Maybe String
+    , onlineVersion : Int
     , typeId : String
     , palette : Maybe (List String)
     , histogram : Maybe (List String)
@@ -71,12 +73,22 @@ type alias RenderData =
     }
 
 
+type alias SavedOnlineData =
+    { key : String
+    , secret : String
+    , evidence : String
+    , onlineVersion : Int
+    , localId : Int
+    }
+
+
 emptyEggInfo : EggInfo
 emptyEggInfo =
     { localId = 1
     , key = Nothing
     , secret = Nothing
     , evidence = Nothing
+    , onlineVersion = 0
     , typeId = "sd"
     , palette = Nothing
     , histogram = Nothing

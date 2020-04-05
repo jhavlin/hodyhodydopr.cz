@@ -41,13 +41,14 @@ div.main-menu {
 div.main-menu-inner {
     background: var(--easter-green);
     display: flex;
-    margin: 0.75rem auto;
+    margin: 0.25rem auto;
 }
 
 .main-menu-item {
     flex: 1 0 auto;
     text-align: center;
-    margin: 0 0.2rem;
+    padding: 0.2rem;
+    margin: 0 0.25rem 0.15rem 0.25rem;
 }
 .main-menu-item:hover {
     background: rgba(255, 255, 255, 0.25);
@@ -215,6 +216,7 @@ h1.site-title {
 .view-info-top {
     flex: 1 1 auto;
     margin: 0 1rem;
+    line-height: 1.5;
 }
 
 .view-info-bottom {
@@ -275,4 +277,48 @@ h1.site-title {
 .egg-list-item-link {
     text-decoration: none;
     color: inherit;
+}
+
+.share-input {
+    width: 100%;
+    font-family: inherit;
+    font-size: inherit;
+    padding: 0.2rem;
+}
+
+.share-label {
+    margin: 0.5rem 0;
+}
+
+textarea.share-input {
+    height: 4rem;
+}
+
+.share-button {
+    background: var(--easter-green);
+    width: 100%;
+    border: none;
+    border-radius: 0.5rem;
+    margin: 1rem 0;
+    padding: 0.5rem 1rem;
+    font-size: 16px;
+    font-weight: bold;
+    color: white;
+}
+
+.share-url-line {
+    display: flex;
+    margin: 1rem 0;
+}
+
+.share-url-input {
+    flex: 1;
+}
+
+.share-url-button {
+    flex: 0;
+}
+
+.share-icon-clipboard {
+    width: 2rem;
 }

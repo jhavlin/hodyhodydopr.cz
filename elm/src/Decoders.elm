@@ -1,8 +1,15 @@
-module Decoders exposing (decodeEggInfo, decodeFlags, decodeFullEggInfo, decodeLocalEggLoadedInfo, decodeRemoteEggLoadedInfo)
+module Decoders exposing
+    ( decodeEggInfo
+    , decodeFlags
+    , decodeFullEggInfo
+    , decodeLocalEggLoadedInfo
+    , decodeRemoteEggLoadedInfo
+    , decodeSavedOnlineData
+    )
 
 import Json.Decode as D
 import Json.Decode.Pipeline exposing (optional, required)
-import Types exposing (EggInfo, Flags, FullEggInfo, LocalEggLoadedInfo, RemoteEggLoadedInfo)
+import Types exposing (EggInfo, Flags, FullEggInfo, LocalEggLoadedInfo, RemoteEggLoadedInfo, SavedOnlineData)
 
 
 decodeEggInfo : D.Decoder EggInfo
@@ -12,6 +19,7 @@ decodeEggInfo =
         |> optional "key" (D.maybe D.string) Nothing
         |> optional "secret" (D.maybe D.string) Nothing
         |> optional "evidence" (D.maybe D.string) Nothing
+        |> optional "onlineVersion" D.int 0
         |> required "typeId" D.string
         |> optional "palette" (D.maybe <| D.list D.string) Nothing
         |> optional "histogram" (D.maybe <| D.list D.string) Nothing
@@ -46,3 +54,13 @@ decodeRemoteEggLoadedInfo =
     D.succeed RemoteEggLoadedInfo
         |> required "eggInfo" decodeEggInfo
         |> required "colors" (D.array D.string)
+
+
+decodeSavedOnlineData : D.Decoder SavedOnlineData
+decodeSavedOnlineData =
+    D.succeed SavedOnlineData
+        |> required "key" D.string
+        |> required "secret" D.string
+        |> required "evidence" D.string
+        |> required "onlineVersion" D.int
+        |> required "localId" D.int
