@@ -15,8 +15,10 @@ import Html.Lazy as Lazy
 import Json.Decode as Decode
 import Json.Encode as Encode
 import ParseInt exposing (parseIntHex, toHex)
+import Process exposing (sleep)
 import Svg exposing (polygon, rect, svg)
 import Svg.Attributes as SAttr exposing (fill, height, points, stroke, strokeWidth, viewBox, width, x, y)
+import Task
 import Types exposing (EggInfo, RenderData, UrlInfo(..), emptyEggInfo)
 import Url
 import UrlParsers
@@ -112,6 +114,7 @@ type alias Model =
     , saveState : SaveState
     , eggToDelete : Maybe Int
     , keepView : Bool
+    , changeId : Int
     }
 
 
@@ -205,6 +208,7 @@ init flagsJson url key =
             , saveState = None
             , eggToDelete = Nothing
             , keepView = True
+            , changeId = 0
             }
     in
     ( model, initApp <| Encoders.encodeUrlInfo urlInfo )
@@ -252,6 +256,7 @@ type Msg
     | CopyToClipboard String
     | DeleteEgg Bool Int
     | CancelDeleteEgg
+    | ScheduledSave Int
 
 
 updatePalette : String -> List String -> List String
@@ -285,7 +290,7 @@ currentPalette model =
     Maybe.withDefault initialPalette (currentEggInfo model).palette
 
 
-paint : Model -> RenderData -> List String -> Int -> Int -> { colors : Array String, palette : List String, histogram : List String }
+paint : Model -> RenderData -> List String -> Int -> Int -> { colors : Array String, palette : List String, histogram : List String, changeId : Int }
 paint model { colors, eggType } palette layerIndex segmentIndex =
     let
         ( a, r ) =
@@ -349,16 +354,18 @@ paint model { colors, eggType } palette layerIndex segmentIndex =
     { colors = updatedColors
     , palette = updatePalette model.currentColor palette
     , histogram = histogram
+    , changeId = model.changeId + 1
     }
 
 
-updateModelAfterPaint : Model -> { colors : Array String, palette : List String, histogram : List String } -> Model
-updateModelAfterPaint model { colors, palette, histogram } =
+updateModelAfterPaint : Model -> { colors : Array String, palette : List String, histogram : List String, changeId : Int } -> Model
+updateModelAfterPaint model { colors, palette, histogram, changeId } =
     case model.eggData of
         Local { localId, renderData } ->
             { model
                 | eggList = updateCurrentEggInfo (\i -> { i | palette = Just palette, histogram = Just histogram }) model.eggList
                 , eggData = Local { localId = localId, renderData = { renderData | colors = colors } }
+                , changeId = changeId
             }
 
         _ ->
@@ -382,6 +389,12 @@ reorderEggList urlInfo implicitLocalId list =
 
         _ ->
             list
+
+
+scheduleSave : Int -> Cmd Msg
+scheduleSave changeId =
+    sleep 250
+        |> Task.perform (\_ -> ScheduledSave changeId)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -419,13 +432,13 @@ update msg model =
 
         Paint layer segment ->
             case model.eggData of
-                Local { localId, renderData } ->
+                Local { renderData } ->
                     let
-                        { colors, palette, histogram } =
+                        { colors, palette, histogram, changeId } =
                             paint model renderData (currentPalette model) layer segment
                     in
-                    ( updateModelAfterPaint model { colors = colors, palette = palette, histogram = histogram }
-                    , saveEggAndList <| Encoders.encodeSaveEggAndListInfo { list = model.eggList, colors = colors, localId = localId }
+                    ( updateModelAfterPaint model { colors = colors, palette = palette, histogram = histogram, changeId = changeId }
+                    , scheduleSave changeId
                     )
 
                 _ ->
@@ -507,13 +520,13 @@ update msg model =
 
         EggTouchStarted ( layerIndex, segmentIndex ) ->
             case model.eggData of
-                Local { localId, renderData } ->
+                Local { renderData } ->
                     let
-                        { colors, palette, histogram } =
+                        { colors, palette, histogram, changeId } =
                             paint model renderData (currentPalette model) layerIndex segmentIndex
                     in
-                    ( updateModelAfterPaint model { colors = colors, palette = palette, histogram = histogram }
-                    , saveEggAndList <| Encoders.encodeSaveEggAndListInfo { list = model.eggList, colors = colors, localId = localId }
+                    ( updateModelAfterPaint model { colors = colors, palette = palette, histogram = histogram, changeId = changeId }
+                    , scheduleSave changeId
                     )
 
                 _ ->
@@ -521,13 +534,13 @@ update msg model =
 
         EggTouchMoved ( layerIndex, segmentIndex ) ->
             case model.eggData of
-                Local { localId, renderData } ->
+                Local { renderData } ->
                     let
-                        { colors, palette, histogram } =
+                        { colors, palette, histogram, changeId } =
                             paint model renderData (currentPalette model) layerIndex segmentIndex
                     in
-                    ( updateModelAfterPaint model { colors = colors, palette = palette, histogram = histogram }
-                    , saveEggAndList <| Encoders.encodeSaveEggAndListInfo { list = model.eggList, colors = colors, localId = localId }
+                    ( updateModelAfterPaint model { colors = colors, palette = palette, histogram = histogram, changeId = changeId }
+                    , scheduleSave changeId
                     )
 
                 _ ->
@@ -535,14 +548,14 @@ update msg model =
 
         EggMouseDownInSegment layerIndex segmentIndex button ->
             case model.eggData of
-                Local { localId, renderData } ->
+                Local { renderData } ->
                     if button == 0 then
                         let
-                            { colors, palette, histogram } =
+                            { colors, palette, histogram, changeId } =
                                 paint model renderData (currentPalette model) layerIndex segmentIndex
                         in
-                        ( updateModelAfterPaint model { colors = colors, palette = palette, histogram = histogram }
-                        , saveEggAndList <| Encoders.encodeSaveEggAndListInfo { list = model.eggList, colors = colors, localId = localId }
+                        ( updateModelAfterPaint model { colors = colors, palette = palette, histogram = histogram, changeId = changeId }
+                        , scheduleSave changeId
                         )
 
                     else if button == 1 || button == 2 then
@@ -570,14 +583,14 @@ update msg model =
 
         EggMouseEnterInSegment layerIndex segmentIndex buttons ->
             case model.eggData of
-                Local { localId, renderData } ->
+                Local { renderData } ->
                     if buttons == 1 && model.autoDrawing then
                         let
-                            { colors, palette, histogram } =
+                            { colors, palette, histogram, changeId } =
                                 paint model renderData (currentPalette model) layerIndex segmentIndex
                         in
-                        ( updateModelAfterPaint model { colors = colors, palette = palette, histogram = histogram }
-                        , saveEggAndList <| Encoders.encodeSaveEggAndListInfo { list = model.eggList, colors = colors, localId = localId }
+                        ( updateModelAfterPaint model { colors = colors, palette = palette, histogram = histogram, changeId = changeId }
+                        , scheduleSave changeId
                         )
 
                     else if (buttons == 4 || buttons == 2) && Maybe.withDefault -1 model.pinnedSegment >= 0 then
@@ -821,6 +834,24 @@ update msg model =
 
         EggNotFound _ ->
             ( { model | eggData = NotFound }, Cmd.none )
+
+        ScheduledSave changeId ->
+            let
+                cmd =
+                    if model.changeId == changeId then
+                        case ( List.head model.eggList, model.eggData ) of
+                            ( Just eggInfo, Local { renderData } ) ->
+                                saveEggAndList <|
+                                    Encoders.encodeSaveEggAndListInfo
+                                        { list = model.eggList, colors = renderData.colors, localId = eggInfo.localId }
+
+                            _ ->
+                                Cmd.none
+
+                    else
+                        Cmd.none
+            in
+            ( model, cmd )
 
 
 
