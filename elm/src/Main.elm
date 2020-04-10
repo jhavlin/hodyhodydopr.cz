@@ -1,4 +1,4 @@
-port module Main exposing (main)
+port module Main exposing (adjustColor, main)
 
 import Array exposing (Array)
 import Browser
@@ -991,6 +991,32 @@ adjustColor hexColor coefficient =
     String.concat [ "#", asHex newR, asHex newG, asHex newB ]
 
 
+contrastColor : String -> String
+contrastColor hexColor =
+    let
+        clr =
+            if String.length hexColor /= 7 then
+                eggColor
+
+            else
+                hexColor
+
+        origR =
+            Result.withDefault 0 <| parseIntHex <| String.slice 1 3 clr
+
+        origG =
+            Result.withDefault 0 <| parseIntHex <| String.slice 3 5 clr
+
+        origB =
+            Result.withDefault 0 <| parseIntHex <| String.slice 5 7 clr
+    in
+    if origR < 128 && origG < 128 && origB < 128 then
+        "#FFFFFF"
+
+    else
+        "#000000"
+
+
 eggPolygon : Int -> Int -> String -> String -> Bool -> Int -> Html Msg
 eggPolygon layerIndex segmentIndex polygonPointsStr fillColor selected verticalSegments =
     let
@@ -1007,7 +1033,12 @@ eggPolygon layerIndex segmentIndex polygonPointsStr fillColor selected verticalS
     polygon
         [ points polygonPointsStr
         , fill color
-        , stroke "#888888"
+        , stroke <|
+            if selected then
+                contrastColor baseColor
+
+            else
+                "#888888"
         , strokeWidth "0.1"
         , attribute "data-layer-index" <| String.fromInt layerIndex
         , attribute "data-segment-index" <| String.fromInt segmentIndex

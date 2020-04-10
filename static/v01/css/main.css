@@ -139,8 +139,12 @@ h1.site-title {
     color: white;
 }
 
-svg.paint-mode > .egg-area:hover, .egg-area.selected {
+svg.paint-mode > .egg-area:hover {
     stroke: black;
+    stroke-width: 1.5;
+}
+
+.egg-area.selected {
     stroke-width: 1.5;
 }
 
