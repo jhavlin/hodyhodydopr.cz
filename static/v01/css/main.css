@@ -239,13 +239,21 @@ h1.site-title {
 .resolution-button {
     margin: 0.2rem;
     padding: 0.4rem;
-    width: 8em;
+    width: 12em;
+    text-align: left;
 }
 
 .egg-list {
     list-style-type: none;
     margin: 0;
     padding: 0;
+}
+
+.egg-list-add-icon {
+    width: 1rem;
+    position: relative;
+    top: 0.1rem;
+    left: -0.15rem;
 }
 
 .egg-list-item {
@@ -284,6 +292,8 @@ h1.site-title {
     padding: 0.25rem;
     margin: 0 0.5rem;
     border-radius: 0.1rem;
+    min-width: 1.5em;
+    text-align: center;
 }
 
 .egg-list-item-link {
