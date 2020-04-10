@@ -545,7 +545,7 @@ update msg model =
                         , saveEggAndList <| Encoders.encodeSaveEggAndListInfo { list = model.eggList, colors = colors, localId = localId }
                         )
 
-                    else if button == 1 then
+                    else if button == 1 || button == 2 then
                         let
                             visibleSegment =
                                 toVisibleSegment renderData.eggType model.rotation segmentIndex
@@ -580,7 +580,7 @@ update msg model =
                         , saveEggAndList <| Encoders.encodeSaveEggAndListInfo { list = model.eggList, colors = colors, localId = localId }
                         )
 
-                    else if buttons == 4 && Maybe.withDefault -1 model.pinnedSegment >= 0 then
+                    else if (buttons == 4 || buttons == 2) && Maybe.withDefault -1 model.pinnedSegment >= 0 then
                         ( { model | rotation = Maybe.withDefault 0 model.pinnedSegment - segmentIndex }, Cmd.none )
 
                     else

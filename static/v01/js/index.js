@@ -39,6 +39,11 @@ function handleRotateBarTouchMove(evt) {
     handleRotateBarTouchEvent(evt, app.ports.rotateBarTouchMoved);
 }
 
+function preventMenu(evt) {
+    evt.preventDefault();
+    return false;
+}
+
 function handleEggTouchEvent(evt, port) {
     if (evt.touches.length > 1) {
         return false;
@@ -145,6 +150,8 @@ app.ports.initTouch.subscribe(function() {
             rotateBar.addEventListener('touchstart', handleRotateBarTouchStart);
             rotateBar.removeEventListener('touchmove', handleRotateBarTouchMove);
             rotateBar.addEventListener('touchmove', handleRotateBarTouchMove);
+            rotateBar.removeEventListener('contextmenu', preventMenu);
+            rotateBar.addEventListener('contextmenu', preventMenu);
         }
         const pictureEgg = document.getElementById('picture-egg');
         if (pictureEgg) {
@@ -152,6 +159,8 @@ app.ports.initTouch.subscribe(function() {
             pictureEgg.addEventListener('touchstart', handleEggTouchStart);
             pictureEgg.removeEventListener('touchmove', handleEggTouchMove);
             pictureEgg.addEventListener('touchmove', handleEggTouchMove);
+            pictureEgg.removeEventListener('contextmenu', preventMenu);
+            pictureEgg.addEventListener('contextmenu', preventMenu)
         }
     }, 100);
 });
