@@ -1010,11 +1010,11 @@ paletteView currentColor palette =
 
         eraseItem =
             div
-                [ class "palette-color"
+                [ class "palette-color palette-color-erase"
                 , onClick <| SetCurrentColor ""
                 , style "background" "white"
                 ]
-                [ text "☒" ]
+                [ HIcons.x [ SAttr.class "palette-color-erase-icon" ] ]
 
         chooseItem =
             input [ type_ "color", class "palette-select", onInput SetCurrentColor ] []

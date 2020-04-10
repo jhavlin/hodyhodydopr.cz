@@ -186,6 +186,17 @@ h1.site-title {
     border-color: black;
 }
 
+.palette-color-erase {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.palette-color-erase-icon {
+    width: 60%;
+    color: black;
+}
+
 .brush-select {
     position: absolute;
     bottom: 0;
