@@ -1318,15 +1318,11 @@ viewShare model =
 
         sharingInfo key secret =
             div []
-                [ div [] [ text "Zkopírujte níže uvedený odkaz a pošlete jej koledníkům třeba e-mailem." ]
+                [ div [] [ text "Zkopírujte níže uvedený odkaz a pošlete jej koledníkům, třeba e-mailem." ]
                 , div [ class "share-url-line" ]
                     [ input [ class "share-url-input", readonly True, value <| shareUrl key secret ] []
                     , button [ class "share-url-button", onClick <| CopyToClipboard <| shareUrl key secret ]
                         [ HIcons.clipboardCopy [ SAttr.class "share-icon-clipboard" ] ]
-                    ]
-                , div []
-                    [ text "Nebo můžete jednoduše získat snímek obrazovky a zveřejnit ho na sociálních sítích, "
-                    , text "ale nezapomeňte z\u{00A0}obrázku odstranit případné osobní údaje."
                     ]
                 ]
 
@@ -1334,6 +1330,20 @@ viewShare model =
             case model.eggData of
                 Local _ ->
                     [ h1 [] [ text "Uložit & sdílet" ]
+                    , div [ class "share-box share-tip-simple" ]
+                        [ p []
+                            [ HIcons.lightBulb [ SAttr.class "share-icon" ]
+                            , text "Pokud Vám stačí pohled na vajíčko z\u{00A0}jedné strany, můžete jednoduše získat snímek obrazovky "
+                            , text "a rozeslat ho třeba e-mailem či chatovací aplikací nebo zveřejnit na sociálních sítích. "
+                            ]
+                        , p [ class "smaller" ]
+                            [ text "(Nezapomeňte však odstranit případné citlivé údaje, které by se mohly na snímku vyskytovat.)"
+                            ]
+                        ]
+                    , p []
+                        [ text "Pojmenujte vajíčko, případně připojte vzkaz, "
+                        , text "uložte vajíčko na internetu tlačítkem níže a zašlete koledníkům vytvořený odkaz."
+                        ]
                     , div [ class "share-label" ] [ text "Název" ]
                     , input [ class "share-input", type_ "text", onInput SetTitle, value eggInfo.title ] []
                     , div [ class "share-label" ] [ text "Vzkaz" ]
@@ -1353,6 +1363,15 @@ viewShare model =
 
                         _ ->
                             div [] []
+                    , div [ class "share-box share-legal" ]
+                        [ p []
+                            [ HIcons.questionMarkCircle [ SAttr.class "share-icon" ]
+                            , text "Veškerá data jsou na serveru uložena v zašifrované formě a provozovat služby jen nemůže číst. "
+                            , text "Žádné uživatelské údaje nejsou zpracovávány ani zaznamenávány. "
+                            , text "Uložená vajíčka mohou být po velikonocích smazána. Dostupnost služby není garantována. "
+                            , text "Použití služby je na vlastní nebezpečí. "
+                            ]
+                        ]
                     ]
 
                 Remote { title, message } ->

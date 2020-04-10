@@ -1,6 +1,10 @@
 /* System Fonts as used by Medium and WordPress - https://css-tricks.com/snippets/css/system-font-stack/ */
 :root {
     --easter-green: #7bac03;
+    --sky-blue: rgb(113, 204, 246);
+    --green-light: #eff5e0;
+    --blue-light: #e0f4f5;
+    --blue-dark: rgb(33, 104, 145);
 }
 
 body {
@@ -16,6 +20,10 @@ body {
 h1 {
     margin: 2.5rem 0 1.5rem 0;
     padding: 0;
+}
+
+.smaller {
+    font-size: 80%;
 }
 
 .larger {
@@ -79,9 +87,8 @@ div.main-menu-inner {
     display: flex;
     flex-direction: column;
     align-items: center;
-    background: /* radial-gradient(circle at 105% -5%, white 0%, white 2%, yellow 15%, transparent 17%, transparent),*/
-                linear-gradient(to top, var(--easter-green) 10%, transparent 30%, transparent 100%),
-                linear-gradient(to bottom, rgb(113, 204, 246) 5%, transparent 40%, transparent 100%);
+    background: linear-gradient(to top, var(--easter-green) 10%, transparent 30%, transparent 100%),
+                linear-gradient(to bottom, var(--sky-blue) 5%, transparent 40%, transparent 100%);
 }
 
 h1.site-title {
@@ -220,7 +227,7 @@ h1.site-title {
 
 .view-info-top {
     flex: 1 1 auto;
-    margin: 0 1rem;
+    margin: 0 1rem 1rem 1rem;
     line-height: 1.5;
 }
 
@@ -283,6 +290,34 @@ h1.site-title {
     text-decoration: none;
     color: inherit;
 }
+
+.share-box {
+    margin: 0.5rem 0;
+    border: 1px gray solid;
+    padding: 0 0.5rem;
+}
+
+.share-tip-simple {
+    background: var(--green-light);
+}
+.share-tip-simple > p > .share-icon {
+    color: var(--easter-green);
+}
+
+.share-legal {
+    background: var(--blue-light);
+    margin-top: 3rem;
+}
+.share-legal > p > .share-icon {
+    color: var(--blue-dark);
+}
+
+.share-icon {
+    width: 1.5rem;
+    margin-right: 0.5rem;
+}
+
+
 
 .share-input {
     width: 100%;
