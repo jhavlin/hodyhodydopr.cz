@@ -10,7 +10,7 @@ import Eggs exposing (EggTypeInfo)
 import Encoders
 import Heroicons.Solid as HIcons
 import Html exposing (Html, a, button, div, h1, h2, input, li, p, span, text, textarea, ul)
-import Html.Attributes exposing (attribute, class, href, id, readonly, style, target, type_, value)
+import Html.Attributes exposing (attribute, class, href, id, readonly, style, target, title, type_, value)
 import Html.Events exposing (onClick, onInput, onMouseDown, onMouseLeave, onMouseUp)
 import Html.Lazy as Lazy
 import Json.Decode as Decode
@@ -108,6 +108,7 @@ type alias Model =
     , rotating : Bool
     , currentColor : String
     , brush : Brush
+    , editMode : EditMode
     , autoDrawing : Bool
     , pinnedSegment : Maybe Int
     , viewMode : ViewMode
@@ -136,6 +137,11 @@ type EggData
 type SaveState
     = None
     | Saving
+
+
+type EditMode
+    = PaintMode
+    | SelectMode
 
 
 initialPalette : List String
@@ -191,6 +197,7 @@ init flagsJson url key =
             , rotating = False
             , currentColor = "#dd5875"
             , brush = B1
+            , editMode = PaintMode
             , autoDrawing = False
             , pinnedSegment = Nothing
             , viewMode = Picture
@@ -210,6 +217,11 @@ init flagsJson url key =
 initColorsArray : EggTypeInfo -> Array String
 initColorsArray egg =
     Array.repeat (egg.layersCount * egg.verticalSegments) ""
+
+
+initSelectionArray : EggTypeInfo -> Array Bool
+initSelectionArray egg =
+    Array.repeat (egg.layersCount * egg.verticalSegments) False
 
 
 toVisibleSegment : EggTypeInfo -> Int -> Int -> Int
@@ -250,6 +262,8 @@ type Msg
     | DeleteEgg Bool Int
     | CancelDeleteEgg
     | ScheduledSave Int
+    | SetEditMode EditMode
+    | ClearSelection
 
 
 updatePalette : String -> List String -> List String
@@ -283,8 +297,8 @@ currentPalette model =
     Maybe.withDefault initialPalette (currentEggInfo model).palette
 
 
-paint : Model -> RenderData -> List String -> Int -> Int -> { colors : Array String, palette : List String, histogram : List String, changeId : Int }
-paint model { colors, eggType } palette layerIndex segmentIndex =
+paint : Model -> RenderData -> List String -> Int -> Int -> { colors : Array String, palette : List String, histogram : List String, changeId : Int, selection : Array Bool }
+paint model { colors, eggType, selection } palette layerIndex segmentIndex =
     let
         points =
             brushPoints model.brush
@@ -300,7 +314,30 @@ paint model { colors, eggType } palette layerIndex segmentIndex =
             Array.set ((actualLayer * eggType.verticalSegments) + actualSegment) model.currentColor clrs
 
         updatedColors =
-            List.foldl pointFn colors points
+            case model.editMode of
+                PaintMode ->
+                    List.foldl pointFn colors points
+
+                _ ->
+                    colors
+
+        updatedSelection =
+            case model.editMode of
+                SelectMode ->
+                    let
+                        actualSegment =
+                            toVisibleSegment eggType model.rotation segmentIndex
+
+                        arrIndex =
+                            (layerIndex * eggType.verticalSegments) + actualSegment
+
+                        origValue =
+                            Maybe.withDefault False <| Array.get arrIndex selection
+                    in
+                    Array.set arrIndex (not origValue) selection
+
+                _ ->
+                    selection
 
         step =
             Array.length updatedColors // 10
@@ -310,19 +347,20 @@ paint model { colors, eggType } palette layerIndex segmentIndex =
             List.range 0 9 |> List.map (\i -> i * step) |> List.map (\i -> Array.get i updatedColors) |> List.map (Maybe.withDefault "")
     in
     { colors = updatedColors
+    , selection = updatedSelection
     , palette = updatePalette model.currentColor palette
     , histogram = histogram
     , changeId = model.changeId + 1
     }
 
 
-updateModelAfterPaint : Model -> { colors : Array String, palette : List String, histogram : List String, changeId : Int } -> Model
-updateModelAfterPaint model { colors, palette, histogram, changeId } =
+updateModelAfterPaint : Model -> { colors : Array String, palette : List String, histogram : List String, changeId : Int, selection : Array Bool } -> Model
+updateModelAfterPaint model { colors, selection, palette, histogram, changeId } =
     case model.eggData of
         Local { localId, renderData } ->
             { model
                 | eggList = updateCurrentEggInfo (\i -> { i | palette = Just palette, histogram = Just histogram }) model.eggList
-                , eggData = Local { localId = localId, renderData = { renderData | colors = colors } }
+                , eggData = Local { localId = localId, renderData = { renderData | colors = colors, selection = selection } }
                 , changeId = changeId
             }
 
@@ -392,10 +430,10 @@ update msg model =
             case model.eggData of
                 Local { renderData } ->
                     let
-                        { colors, palette, histogram, changeId } =
+                        { colors, palette, histogram, changeId, selection } =
                             paint model renderData (currentPalette model) layer segment
                     in
-                    ( updateModelAfterPaint model { colors = colors, palette = palette, histogram = histogram, changeId = changeId }
+                    ( updateModelAfterPaint model { colors = colors, palette = palette, histogram = histogram, changeId = changeId, selection = selection }
                     , scheduleSave changeId
                     )
 
@@ -408,9 +446,37 @@ update msg model =
             )
 
         SetCurrentColor color ->
-            ( { model | currentColor = color }
-            , Cmd.none
-            )
+            case ( model.editMode, model.eggData ) of
+                ( SelectMode, Local localData ) ->
+                    let
+                        renderData =
+                            localData.renderData
+
+                        foldFn ( index, value ) colors =
+                            if value then
+                                Array.set index color colors
+
+                            else
+                                colors
+
+                        updatedColors =
+                            Array.toIndexedList renderData.selection
+                                |> List.foldl foldFn renderData.colors
+
+                        updatedEggData =
+                            Local { localData | renderData = { renderData | colors = updatedColors } }
+
+                        changeId =
+                            model.changeId + 1
+                    in
+                    ( { model | currentColor = color, eggData = updatedEggData, changeId = changeId }
+                    , scheduleSave changeId
+                    )
+
+                _ ->
+                    ( { model | currentColor = color }
+                    , Cmd.none
+                    )
 
         SetAutoDrawing drawing ->
             ( { model | autoDrawing = drawing }
@@ -479,13 +545,17 @@ update msg model =
         EggTouchStarted ( layerIndex, segmentIndex ) ->
             case model.eggData of
                 Local { renderData } ->
-                    let
-                        { colors, palette, histogram, changeId } =
-                            paint model renderData (currentPalette model) layerIndex segmentIndex
-                    in
-                    ( updateModelAfterPaint model { colors = colors, palette = palette, histogram = histogram, changeId = changeId }
-                    , scheduleSave changeId
-                    )
+                    if model.editMode == PaintMode then
+                        let
+                            { colors, palette, histogram, changeId, selection } =
+                                paint model renderData (currentPalette model) layerIndex segmentIndex
+                        in
+                        ( updateModelAfterPaint model { colors = colors, palette = palette, histogram = histogram, changeId = changeId, selection = selection }
+                        , scheduleSave changeId
+                        )
+
+                    else
+                        ( model, Cmd.none )
 
                 _ ->
                     ( model, Cmd.none )
@@ -493,13 +563,17 @@ update msg model =
         EggTouchMoved ( layerIndex, segmentIndex ) ->
             case model.eggData of
                 Local { renderData } ->
-                    let
-                        { colors, palette, histogram, changeId } =
-                            paint model renderData (currentPalette model) layerIndex segmentIndex
-                    in
-                    ( updateModelAfterPaint model { colors = colors, palette = palette, histogram = histogram, changeId = changeId }
-                    , scheduleSave changeId
-                    )
+                    if model.editMode == PaintMode then
+                        let
+                            { colors, palette, histogram, changeId, selection } =
+                                paint model renderData (currentPalette model) layerIndex segmentIndex
+                        in
+                        ( updateModelAfterPaint model { colors = colors, palette = palette, histogram = histogram, changeId = changeId, selection = selection }
+                        , scheduleSave changeId
+                        )
+
+                    else
+                        ( model, Cmd.none )
 
                 _ ->
                     ( model, Cmd.none )
@@ -507,12 +581,12 @@ update msg model =
         EggMouseDownInSegment layerIndex segmentIndex button ->
             case model.eggData of
                 Local { renderData } ->
-                    if button == 0 then
+                    if button == 0 && model.editMode == PaintMode then
                         let
-                            { colors, palette, histogram, changeId } =
+                            { colors, palette, histogram, changeId, selection } =
                                 paint model renderData (currentPalette model) layerIndex segmentIndex
                         in
-                        ( updateModelAfterPaint model { colors = colors, palette = palette, histogram = histogram, changeId = changeId }
+                        ( updateModelAfterPaint model { colors = colors, palette = palette, histogram = histogram, changeId = changeId, selection = selection }
                         , scheduleSave changeId
                         )
 
@@ -542,12 +616,12 @@ update msg model =
         EggMouseEnterInSegment layerIndex segmentIndex buttons ->
             case model.eggData of
                 Local { renderData } ->
-                    if buttons == 1 && model.autoDrawing then
+                    if buttons == 1 && model.autoDrawing && model.editMode == PaintMode then
                         let
-                            { colors, palette, histogram, changeId } =
+                            { colors, palette, histogram, changeId, selection } =
                                 paint model renderData (currentPalette model) layerIndex segmentIndex
                         in
-                        ( updateModelAfterPaint model { colors = colors, palette = palette, histogram = histogram, changeId = changeId }
+                        ( updateModelAfterPaint model { colors = colors, palette = palette, histogram = histogram, changeId = changeId, selection = selection }
                         , scheduleSave changeId
                         )
 
@@ -623,7 +697,10 @@ update msg model =
                     eggInfo :: model.eggList
 
                 eggData =
-                    Local { localId = localId, renderData = { colors = colors, eggType = eggType } }
+                    Local
+                        { localId = localId
+                        , renderData = { colors = colors, eggType = eggType, selection = initSelectionArray eggType }
+                        }
             in
             ( { model
                 | eggList = eggList
@@ -656,7 +733,11 @@ update msg model =
                                     colors
                         in
                         ( { model
-                            | eggData = Local { localId = localId, renderData = { colors = validColors, eggType = eggType } }
+                            | eggData =
+                                Local
+                                    { localId = localId
+                                    , renderData = { colors = validColors, eggType = eggType, selection = initSelectionArray eggType }
+                                    }
                             , rotation = 1
                             , viewMode =
                                 if model.keepView then
@@ -687,7 +768,11 @@ update msg model =
                             Eggs.typeInfoForTypeId typeId
 
                         eggData =
-                            Remote { renderData = { colors = colors, eggType = eggType }, title = title, message = message }
+                            Remote
+                                { renderData = { colors = colors, eggType = eggType, selection = Array.empty }
+                                , title = title
+                                , message = message
+                                }
                     in
                     ( { model | eggData = eggData }, initTouch () )
 
@@ -811,6 +896,36 @@ update msg model =
             in
             ( model, cmd )
 
+        SetEditMode mode ->
+            case model.eggData of
+                Local localData ->
+                    let
+                        renderData =
+                            localData.renderData
+
+                        updatedEggData =
+                            Local { localData | renderData = { renderData | selection = initSelectionArray renderData.eggType } }
+                    in
+                    ( { model | editMode = mode, eggData = updatedEggData }, Cmd.none )
+
+                _ ->
+                    ( { model | editMode = mode }, Cmd.none )
+
+        ClearSelection ->
+            case model.eggData of
+                Local localData ->
+                    let
+                        renderData =
+                            localData.renderData
+
+                        updatedEggData =
+                            Local { localData | renderData = { renderData | selection = initSelectionArray renderData.eggType } }
+                    in
+                    ( { model | eggData = updatedEggData }, Cmd.none )
+
+                _ ->
+                    ( model, Cmd.none )
+
 
 
 -- SUBSCRIPTIONS
@@ -876,8 +991,8 @@ adjustColor hexColor coefficient =
     String.concat [ "#", asHex newR, asHex newG, asHex newB ]
 
 
-eggPolygon : Int -> Int -> String -> String -> Int -> Html Msg
-eggPolygon layerIndex segmentIndex polygonPointsStr fillColor verticalSegments =
+eggPolygon : Int -> Int -> String -> String -> Bool -> Int -> Html Msg
+eggPolygon layerIndex segmentIndex polygonPointsStr fillColor selected verticalSegments =
     let
         baseColor =
             if String.isEmpty fillColor then
@@ -894,18 +1009,23 @@ eggPolygon layerIndex segmentIndex polygonPointsStr fillColor verticalSegments =
         , fill color
         , stroke "#888888"
         , strokeWidth "0.1"
-        , SAttr.class "egg-area"
         , attribute "data-layer-index" <| String.fromInt layerIndex
         , attribute "data-segment-index" <| String.fromInt segmentIndex
         , onClick <| Paint layerIndex segmentIndex
         , onMouseDownWithButton <| EggMouseDownInSegment layerIndex segmentIndex
         , onMouseEnterWithButtons <| EggMouseEnterInSegment layerIndex segmentIndex
+        , SAttr.class <|
+            if selected then
+                "egg-area selected"
+
+            else
+                "egg-area"
         ]
         []
 
 
-eggView : Int -> Array String -> EggTypeInfo -> Html Msg
-eggView rotation colors eggType =
+eggView : Int -> EditMode -> Array String -> Array Bool -> EggTypeInfo -> Html Msg
+eggView rotation editMode colors selection eggType =
     let
         areaToShape layerIndex segmentIndex polygonPointsStr =
             let
@@ -915,12 +1035,16 @@ eggView rotation colors eggType =
                 color =
                     Array.get ((layerIndex * eggType.verticalSegments) + visibleSegment) colors |> Maybe.withDefault ""
 
+                selected =
+                    Array.get ((layerIndex * eggType.verticalSegments) + visibleSegment) selection |> Maybe.withDefault False
+
                 lazyNode =
-                    Lazy.lazy5 eggPolygon
+                    Lazy.lazy6 eggPolygon
                         layerIndex
                         segmentIndex
                         polygonPointsStr
                         color
+                        selected
                         eggType.verticalSegments
             in
             lazyNode
@@ -936,7 +1060,12 @@ eggView rotation colors eggType =
     svg
         [ width "700"
         , viewBox "-350 -25 700 850"
-        , SAttr.class "picture-egg"
+        , SAttr.class <|
+            if editMode == PaintMode then
+                "picture-egg paint-mode"
+
+            else
+                "picture-egg"
         , SAttr.id "picture-egg"
         , onMouseDown <| SetAutoDrawing True
         , onMouseUp <| SetAutoDrawing False
@@ -1018,8 +1147,8 @@ rotateBarView egg rotation =
         [ bar ]
 
 
-paletteView : String -> List String -> Html Msg
-paletteView currentColor palette =
+paletteView : EditMode -> String -> List String -> Html Msg
+paletteView editMode currentColor palette =
     let
         colorToItem color =
             div
@@ -1049,14 +1178,41 @@ paletteView currentColor palette =
 
             else
                 currentColor
+
+        backgroundStyles =
+            if editMode == PaintMode then
+                [ style "background" selected ]
+
+            else
+                []
     in
-    div [ class "palette-outer", style "background" selected ]
+    div (class "palette-outer" :: backgroundStyles)
         [ div [ class "palette-inner base-width" ] ((eraseItem :: colorItems) ++ [ chooseItem ])
         ]
 
 
-brushSelectView : Brush -> String -> Html Msg
-brushSelectView brush color =
+editModeSelectView : EditMode -> Html Msg
+editModeSelectView editMode =
+    let
+        ( icon, nextMode ) =
+            case editMode of
+                PaintMode ->
+                    ( HIcons.pencil, SelectMode )
+
+                SelectMode ->
+                    ( HIcons.locationMarker, PaintMode )
+    in
+    div
+        [ class "mode-select"
+        , onClick <| SetEditMode nextMode
+        , title "Přepnout režim"
+        ]
+        [ icon [ SAttr.class "mode-select-icon" ]
+        ]
+
+
+brushSelectView : EditMode -> Brush -> String -> Html Msg
+brushSelectView editMode brush color =
     let
         points =
             brushPoints brush
@@ -1114,17 +1270,28 @@ brushSelectView brush color =
                 ]
                 []
     in
-    div
-        [ class "brush-select"
-        , onClick ToggleBrush
-        ]
-        [ svg
-            [ width "40"
-            , viewBox "-20 -20 40 40"
-            , SAttr.class "brush-select-svg"
-            ]
-            (borderCircle :: rectangles)
-        ]
+    case editMode of
+        PaintMode ->
+            div
+                [ class "brush-select"
+                , onClick ToggleBrush
+                ]
+                [ svg
+                    [ width "40"
+                    , viewBox "-20 -20 40 40"
+                    , SAttr.class "brush-select-svg"
+                    ]
+                    (borderCircle :: rectangles)
+                ]
+
+        SelectMode ->
+            div
+                [ class "brush-select"
+                , onClick ClearSelection
+                , title "Zrušit výběr"
+                ]
+                [ HIcons.x [ SAttr.class "clear-selection-icon" ]
+                ]
 
 
 view : Model -> Browser.Document Msg
@@ -1207,7 +1374,7 @@ viewPicture model =
             div [ class "view-edit notranslate", attribute "translate" "no" ]
                 ([ div [ class "picture-container base-width" ]
                     [ div [ class "picture-absolute" ]
-                        [ eggView model.rotation renderData.colors renderData.eggType
+                        [ eggView model.rotation model.editMode renderData.colors renderData.selection renderData.eggType
                         , div [ class "picture-controls-anchor" ]
                             [ div [ class "picture-controls-line" ]
                                 inPictureControls
@@ -1222,8 +1389,10 @@ viewPicture model =
     case model.eggData of
         Local { renderData } ->
             ready renderData
-                [ Lazy.lazy2 brushSelectView model.brush model.currentColor ]
-                [ Lazy.lazy2 paletteView model.currentColor (currentPalette model) ]
+                [ Lazy.lazy3 brushSelectView model.editMode model.brush model.currentColor
+                , Lazy.lazy editModeSelectView model.editMode
+                ]
+                [ Lazy.lazy3 paletteView model.editMode model.currentColor (currentPalette model) ]
 
         Remote { renderData, title } ->
             ready renderData [] [ div [ class "picture-bottom-title" ] [ text title ] ]

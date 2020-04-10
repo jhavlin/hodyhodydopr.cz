@@ -139,7 +139,7 @@ h1.site-title {
     color: white;
 }
 
-.egg-area:hover {
+svg.paint-mode > .egg-area:hover, .egg-area.selected {
     stroke: black;
     stroke-width: 1.5;
 }
@@ -201,6 +201,28 @@ h1.site-title {
     position: absolute;
     bottom: 0;
     left: 0;
+}
+
+
+.mode-select {
+    position: absolute;
+    bottom: 0.25rem;
+    right: 0;
+    width: 2.5rem;
+    height: 2.5rem;
+    color: white;
+}
+
+.mode-select > svg {
+    stroke: var(--easter-green);
+    stroke-width: 1px;
+}
+
+.clear-selection-icon {
+    width: 2.5rem;
+    color: white;
+    stroke: var(--easter-green);
+    stroke-width: 1px;
 }
 
 .rotate-bar {

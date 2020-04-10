@@ -1,4 +1,10 @@
-module CustomEvents exposing (onClickStopping, onMouseDownWithButton, onMouseEnterWithButtons, onMouseUpWithButton)
+module CustomEvents exposing
+    ( onClickStopping
+    , onMouseDownWithButton
+    , onMouseDownWithButtonStopping
+    , onMouseEnterWithButtons
+    , onMouseUpWithButton
+    )
 
 import Html
 import Html.Events exposing (custom, on)
@@ -18,6 +24,11 @@ withButtonsDecoder message =
 onMouseDownWithButton : (Int -> msg) -> Html.Attribute msg
 onMouseDownWithButton message =
     on "mousedown" <| withButtonDecoder message
+
+
+onMouseDownWithButtonStopping : (Int -> msg) -> Html.Attribute msg
+onMouseDownWithButtonStopping message =
+    custom "mousedown" <| map alwaysStop <| withButtonDecoder message
 
 
 onMouseUpWithButton : (Int -> msg) -> Html.Attribute msg

@@ -78,6 +78,7 @@ type alias DeleteEggInfo =
 
 type alias RenderData =
     { colors : Array String
+    , selection : Array Bool
     , eggType : Eggs.EggTypeInfo
     }
 
