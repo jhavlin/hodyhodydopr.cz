@@ -1377,7 +1377,7 @@ viewShare model =
                             [ HIcons.questionMarkCircle [ SAttr.class "share-icon" ]
                             , text "Veškerá data jsou na serveru uložena v zašifrované formě a provozovat služby jen nemůže číst. "
                             , text "Žádné uživatelské údaje nejsou zpracovávány ani zaznamenávány. "
-                            , text "Uložená vajíčka mohou být po velikonocích smazána. Dostupnost služby není garantována. "
+                            , text "Uložená vajíčka mohou být po Velikonocích smazána. Dostupnost služby není garantována. "
                             , text "Použití služby je na vlastní nebezpečí. "
                             ]
                         ]
