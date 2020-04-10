@@ -1211,7 +1211,11 @@ viewInfo _ =
                     , text "kraslici uložte, zkopírujte si URL adresu pro prohlížení a pošlete ji koledníkům."
                     ]
                 , p [] [ text "Protože máme přestupný rok, mohou malovat i kluci." ]
-                , p [] [ span [ class "larger" ] [ text "♥" ], text " ", text "Věnováno všem, co se starají." ]
+                , p []
+                    [ span [ class "larger", style "color" "red" ]
+                        [ text "♥" ]
+                    , text " Věnováno všem, co se starají."
+                    ]
                 ]
 
         bottom =
