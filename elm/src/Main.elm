@@ -3,8 +3,7 @@ port module Main exposing (main)
 import Array exposing (Array)
 import Browser
 import Browser.Navigation as Nav
-import CustomEvents exposing (onMouseDownWithButton, onMouseEnterWithButtons)
-import Debug
+import CustomEvents exposing (onClickStopping, onMouseDownWithButton, onMouseEnterWithButtons)
 import Decoders
 import Eggs exposing (EggTypeInfo)
 import Encoders
@@ -35,6 +34,9 @@ port saveList : Encode.Value -> Cmd msg
 port saveEggAndList : Encode.Value -> Cmd msg
 
 
+port deleteEgg : Encode.Value -> Cmd msg
+
+
 port loadEgg : Encode.Value -> Cmd msg
 
 
@@ -49,6 +51,9 @@ port copyToClipboard : String -> Cmd msg
 
 
 port localEggLoaded : (Decode.Value -> msg) -> Sub msg
+
+
+port eggNotFound : (Decode.Value -> msg) -> Sub msg
 
 
 port remoteEggLoaded : (Decode.Value -> msg) -> Sub msg
@@ -105,6 +110,8 @@ type alias Model =
     , viewMode : ViewMode
     , time : Int
     , saveState : SaveState
+    , eggToDelete : Maybe Int
+    , keepView : Bool
     }
 
 
@@ -119,6 +126,7 @@ type EggData
     = Loading
     | Local { localId : Int, renderData : RenderData }
     | Remote { renderData : RenderData, title : String, message : String }
+    | NotFound
 
 
 type Brush
@@ -195,6 +203,8 @@ init flagsJson url key =
             , implicitLocalId = decoded.implicitLocalId
             , time = 0
             , saveState = None
+            , eggToDelete = Nothing
+            , keepView = True
             }
     in
     ( model, initApp <| Encoders.encodeUrlInfo urlInfo )
@@ -235,12 +245,15 @@ type Msg
     | NewEgg String
     | LocalEggLoaded Decode.Value
     | RemoteEggLoaded Decode.Value
+    | EggNotFound Decode.Value
     | SetTitle String
     | SetMessage String
     | NoOp
     | SaveOnline
     | SavedOnline Decode.Value
     | CopyToClipboard String
+    | DeleteEgg Bool Int
+    | CancelDeleteEgg
 
 
 updateEggList : Maybe EggInfo -> List EggInfo -> List EggInfo
@@ -421,7 +434,12 @@ update msg model =
             ( { model
                 | eggData = Loading
                 , eggList = eggList
-                , viewMode = Picture
+                , viewMode =
+                    if model.keepView then
+                        model.viewMode
+
+                    else
+                        Picture
                 , rotation = 0
               }
             , loadEgg <| Encoders.encodeUrlInfo urlInfo
@@ -592,6 +610,9 @@ update msg model =
                 Loading ->
                     ( model, Cmd.none )
 
+                NotFound ->
+                    ( model, Cmd.none )
+
         EggMouseEnterInSegment layerIndex segmentIndex buttons ->
             case model.eggData of
                 Local { localId, renderData } ->
@@ -620,6 +641,9 @@ update msg model =
                 Loading ->
                     ( model, Cmd.none )
 
+                NotFound ->
+                    ( model, Cmd.none )
+
         ToggleBrush ->
             let
                 newBrush =
@@ -642,7 +666,7 @@ update msg model =
             ( { model | brush = newBrush }, Cmd.none )
 
         SetViewMode mode ->
-            ( { model | viewMode = mode }, Cmd.none )
+            ( { model | viewMode = mode, eggToDelete = Nothing }, Cmd.none )
 
         NewEgg resolution ->
             let
@@ -708,7 +732,13 @@ update msg model =
                         ( { model
                             | eggData = Local { localId = localId, renderData = { colors = validColors, eggType = eggType } }
                             , rotation = 1
-                            , viewMode = Picture
+                            , viewMode =
+                                if model.keepView then
+                                    model.viewMode
+
+                                else
+                                    Picture
+                            , keepView = False
                           }
                         , initTouch ()
                         )
@@ -808,6 +838,35 @@ update msg model =
         CopyToClipboard text ->
             ( model, copyToClipboard text )
 
+        DeleteEgg confirmed eggId ->
+            if confirmed then
+                let
+                    eggList =
+                        List.filter (\eggInfo -> eggInfo.localId /= eggId) model.eggList
+
+                    topEggId =
+                        Maybe.withDefault 0 <| Maybe.map .localId <| List.head eggList
+                in
+                ( { model
+                    | eggList = eggList
+                    , eggToDelete = Nothing
+                    , keepView = True
+                  }
+                , Cmd.batch
+                    [ deleteEgg <| Encoders.encodeDeleteEggInfo { localId = eggId, list = eggList }
+                    , Nav.pushUrl model.key (String.concat [ "#moje/", String.fromInt topEggId ])
+                    ]
+                )
+
+            else
+                ( { model | eggToDelete = Just eggId }, Cmd.none )
+
+        CancelDeleteEgg ->
+            ( { model | eggToDelete = Nothing }, Cmd.none )
+
+        EggNotFound _ ->
+            ( { model | eggData = NotFound }, Cmd.none )
+
 
 
 -- SUBSCRIPTIONS
@@ -823,6 +882,7 @@ subscriptions _ =
         , localEggLoaded LocalEggLoaded
         , remoteEggLoaded RemoteEggLoaded
         , savedOnline SavedOnline
+        , eggNotFound EggNotFound
         ]
 
 
@@ -1200,6 +1260,18 @@ viewPicture model =
         Loading ->
             div [] []
 
+        NotFound ->
+            div [ class "view-info view-cover notranslate", attribute "translate" "no" ]
+                [ div [ class "base-width" ]
+                    [ div [ class "view-info-outer" ]
+                        [ div [ class "view-info-top" ]
+                            [ h1 [] [ text "Nenalezeno" ]
+                            , div [] <| viewListInner model
+                            ]
+                        ]
+                    ]
+                ]
+
 
 viewInfo : Model -> Html msg
 viewInfo _ =
@@ -1244,11 +1316,46 @@ viewInfo _ =
         ]
 
 
-viewList : Model -> Html Msg
-viewList model =
+viewListInner : Model -> List (Html Msg)
+viewListInner model =
     let
         idView id typeId =
-            div [ class "egg-list-item-id" ] [ text <| String.fromInt id, span [ class "egg-type-id" ] [ text typeId ] ]
+            div [ class "egg-list-item-id" ]
+                [ text <| String.fromInt id
+                , span [ class "egg-type-id" ] [ text typeId ]
+                ]
+
+        deleteView id =
+            div [ class "egg-list-item-delete" ]
+                (case ( model.eggToDelete, List.length model.eggList > 1 ) of
+                    ( Just toDeleteId, True ) ->
+                        if toDeleteId == id then
+                            [ text "Jako fakt? "
+                            , button [ onClickStopping <| DeleteEgg True id ] [ text "Smazat" ]
+                            , button [ onClickStopping <| CancelDeleteEgg ] [ text "Nechat" ]
+                            ]
+
+                        else
+                            []
+
+                    ( Nothing, True ) ->
+                        [ div
+                            [ class "egg-list-item-delete-action"
+                            , onClickStopping <| DeleteEgg False id
+                            ]
+                            [ HIcons.trash [ SAttr.class "egg-list-item-delete-icon" ]
+                            ]
+                        ]
+
+                    _ ->
+                        []
+                )
+
+        itemHeaderView id typeId =
+            div [ class "egg-list-item-header" ]
+                [ idView id typeId
+                , deleteView id
+                ]
 
         titleView title =
             div [ class "egg-list-item-name" ]
@@ -1287,7 +1394,7 @@ viewList model =
         eggItemView eggInfo =
             li [ class "egg-list-item" ]
                 [ a [ href <| eggHref eggInfo, class "egg-list-item-link" ]
-                    [ idView eggInfo.localId eggInfo.typeId
+                    [ itemHeaderView eggInfo.localId eggInfo.typeId
                     , titleView eggInfo.title
                     , histogramView eggInfo.histogram
                     ]
@@ -1296,39 +1403,43 @@ viewList model =
         eggListView =
             ul [ class "egg-list" ] (List.map eggItemView model.eggList)
     in
+    [ h2 [] [ text "Nová kraslice" ]
+    , p [] [ text "Zvolte rozlišení:" ]
+    , ul []
+        [ li []
+            [ button [ class "resolution-button", onClick <| NewEgg "sd" ]
+                [ HIcons.plus [ SAttr.class "egg-list-add-icon" ]
+                , text "Polohrubé"
+                , span [ class "egg-type-id" ] [ text "sd" ]
+                ]
+            ]
+        , li []
+            [ button [ class "resolution-button", onClick <| NewEgg "ld" ]
+                [ HIcons.plus [ SAttr.class "egg-list-add-icon" ]
+                , text "Hrubé"
+                , span [ class "egg-type-id" ] [ text "ld" ]
+                ]
+            ]
+        , li []
+            [ button [ class "resolution-button", onClick <| NewEgg "hd" ]
+                [ HIcons.plus [ SAttr.class "egg-list-add-icon" ]
+                , text "Hladké"
+                , span [ class "egg-type-id" ] [ text "hd" ]
+                ]
+            ]
+        ]
+    , h2 [] [ text "Ošatka" ]
+    , eggListView
+    ]
+
+
+viewList : Model -> Html Msg
+viewList model =
     div [ class "view-info view-cover notranslate", attribute "translate" "no" ]
         [ div [ class "base-width" ]
             [ div [ class "view-info-outer" ]
                 [ div [ class "view-info-top" ]
-                    [ h1 [] [ text "Moje kraslice" ]
-                    , h2 [] [ text "Nová kraslice" ]
-                    , p [] [ text "Zvolte rozlišení:" ]
-                    , ul []
-                        [ li []
-                            [ button [ class "resolution-button", onClick <| NewEgg "sd" ]
-                                [ HIcons.plus [ SAttr.class "egg-list-add-icon" ]
-                                , text "Polohrubé"
-                                , span [ class "egg-type-id" ] [ text "sd" ]
-                                ]
-                            ]
-                        , li []
-                            [ button [ class "resolution-button", onClick <| NewEgg "ld" ]
-                                [ HIcons.plus [ SAttr.class "egg-list-add-icon" ]
-                                , text "Hrubé"
-                                , span [ class "egg-type-id" ] [ text "ld" ]
-                                ]
-                            ]
-                        , li []
-                            [ button [ class "resolution-button", onClick <| NewEgg "hd" ]
-                                [ HIcons.plus [ SAttr.class "egg-list-add-icon" ]
-                                , text "Hladké"
-                                , span [ class "egg-type-id" ] [ text "hd" ]
-                                ]
-                            ]
-                        ]
-                    , h2 [] [ text "Ošatka" ]
-                    , eggListView
-                    ]
+                    (h1 [] [ text "Moje kraslice" ] :: viewListInner model)
                 ]
             ]
         ]

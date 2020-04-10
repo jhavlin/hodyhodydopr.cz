@@ -276,9 +276,25 @@ h1.site-title {
     border-color: black;
 }
 
+.egg-list-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+
 .egg-list-item-id {
     color: gray;
     padding: 0.25rem;
+}
+
+.egg-list-item-delete {
+    padding: 0.25rem;
+}
+
+.egg-list-item-delete-icon {
+    width: 1.25rem;
+    color: gray;
 }
 
 .egg-list-item-name {

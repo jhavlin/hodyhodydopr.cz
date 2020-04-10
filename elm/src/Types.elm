@@ -1,5 +1,6 @@
 module Types exposing
-    ( EggInfo
+    ( DeleteEggInfo
+    , EggInfo
     , Flags
     , FullEggInfo
     , LocalEggLoadedInfo
@@ -66,6 +67,12 @@ type alias SaveEggAndListInfo =
     { list : List EggInfo
     , colors : Array String
     , localId : Int
+    }
+
+
+type alias DeleteEggInfo =
+    { localId : Int
+    , list : List EggInfo
     }
 
 

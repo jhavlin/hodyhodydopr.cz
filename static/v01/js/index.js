@@ -82,7 +82,11 @@ async function loadEgg(urlInfo) {
             localId = parseInt(localStorage.getItem(LAST_ID) || 1);
         }
         const colors = getLocalJson(`l-${localId}`, []);
-        app.ports.localEggLoaded.send({ localId, colors });
+        if (!colors.length && ((localId > 1) || (localId === 1 && getLocalJson(LIST, []).filter(i => i.localId !== 1).length > 0))) {
+            app.ports.eggNotFound.send({});
+        } else {
+            app.ports.localEggLoaded.send({ localId, colors });
+        }
     }
 }
 
@@ -160,6 +164,12 @@ app.ports.saveEggAndList.subscribe(function({ localId, colors, list }) {
     setLocalJson(`l-${localId}`, colors);
     setLocalJson(LIST, list);
     setLocalJson(LAST_ID, localId);
+});
+
+app.ports.deleteEgg.subscribe(function({ localId, list }) {
+    localStorage.removeItem(`l-${localId}`);
+    setLocalJson(LIST, list);
+    setLocalJson(LAST_ID, list[0].localId);
 });
 
 app.ports.loadEgg.subscribe(function(urlInfo) {

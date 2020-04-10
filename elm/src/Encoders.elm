@@ -1,8 +1,15 @@
-module Encoders exposing (encodeEggList, encodeFullEggInfo, encodeSaveEggAndListInfo, encodeSaveOnlineData, encodeUrlInfo)
+module Encoders exposing
+    ( encodeDeleteEggInfo
+    , encodeEggList
+    , encodeFullEggInfo
+    , encodeSaveEggAndListInfo
+    , encodeSaveOnlineData
+    , encodeUrlInfo
+    )
 
 import Array exposing (Array)
 import Json.Encode as E
-import Types exposing (EggInfo, FullEggInfo, SaveEggAndListInfo, UrlInfo(..))
+import Types exposing (DeleteEggInfo, EggInfo, FullEggInfo, SaveEggAndListInfo, UrlInfo(..))
 
 
 encodeEggInfo : EggInfo -> E.Value
@@ -64,6 +71,14 @@ encodeSaveEggAndListInfo info =
         [ ( "localId", E.int info.localId )
         , ( "list", E.list encodeEggInfo info.list )
         , ( "colors", E.array E.string info.colors )
+        ]
+
+
+encodeDeleteEggInfo : DeleteEggInfo -> E.Value
+encodeDeleteEggInfo info =
+    E.object
+        [ ( "localId", E.int info.localId )
+        , ( "list", E.list encodeEggInfo info.list )
         ]
 
 
