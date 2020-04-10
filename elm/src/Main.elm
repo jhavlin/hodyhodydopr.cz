@@ -721,17 +721,22 @@ update msg model =
 
         RemoteEggLoaded jsonValue ->
             let
-                decodeResult = Decode.decodeValue Decoders.decodeRemoteEggLoadedInfo jsonValue
+                decodeResult =
+                    Decode.decodeValue Decoders.decodeRemoteEggLoadedInfo jsonValue
             in
             case decodeResult of
                 Ok { colors, typeId, title, message } ->
                     let
-                        eggType = Eggs.typeInfoForTypeId typeId
-                        eggData = Remote { renderData = { colors = colors, eggType = eggType }, title = title, message = message }
+                        eggType =
+                            Eggs.typeInfoForTypeId typeId
+
+                        eggData =
+                            Remote { renderData = { colors = colors, eggType = eggType }, title = title, message = message }
                     in
                     ( { model | eggData = eggData }, initTouch () )
 
-                _ -> ( model, Cmd.none )
+                _ ->
+                    ( model, Cmd.none )
 
         SetTitle title ->
             let
@@ -1383,7 +1388,7 @@ viewShare model =
                     , div [ class "share-label" ] [ text "Název:" ]
                     , p [] [ text title ]
                     , div [ class "share-label" ] [ text "Vzkaz:" ]
-                    , p [] [ text message]
+                    , p [] [ text message ]
                     ]
 
                 _ ->

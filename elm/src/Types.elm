@@ -55,10 +55,10 @@ type alias LocalEggLoadedInfo =
 
 
 type alias RemoteEggLoadedInfo =
-    { colors: Array String
-    , typeId: String
-    , title: String
-    , message: String
+    { colors : Array String
+    , typeId : String
+    , title : String
+    , message : String
     }
 
 
