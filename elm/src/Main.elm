@@ -232,7 +232,6 @@ type Msg
     | SetCurrentColor String
     | SetAutoDrawing Bool
     | PinSegment (Maybe Int)
-    | SetRotation Int
     | RotateBarTouchStarted Int
     | RotateBarTouchMoved Int
     | RotateBarMouseEnteredSegment Int Int
@@ -248,22 +247,11 @@ type Msg
     | EggNotFound Decode.Value
     | SetTitle String
     | SetMessage String
-    | NoOp
     | SaveOnline
     | SavedOnline Decode.Value
     | CopyToClipboard String
     | DeleteEgg Bool Int
     | CancelDeleteEgg
-
-
-updateEggList : Maybe EggInfo -> List EggInfo -> List EggInfo
-updateEggList eggInfoOpt eggList =
-    case eggInfoOpt of
-        Just info ->
-            info :: List.filter (\i -> i.localId /= info.localId) eggList
-
-        Nothing ->
-            eggList
 
 
 updatePalette : String -> List String -> List String
@@ -377,19 +365,6 @@ updateModelAfterPaint model { colors, palette, histogram } =
             model
 
 
-getRenderData : Model -> Maybe RenderData
-getRenderData model =
-    case model.eggData of
-        Local { renderData } ->
-            Just renderData
-
-        Remote { renderData } ->
-            Just renderData
-
-        _ ->
-            Nothing
-
-
 reorderEggList : UrlInfo -> Int -> List EggInfo -> List EggInfo
 reorderEggList urlInfo implicitLocalId list =
     let
@@ -412,9 +387,6 @@ reorderEggList urlInfo implicitLocalId list =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        NoOp ->
-            ( model, Cmd.none )
-
         LinkClicked urlRequest ->
             case urlRequest of
                 Browser.Internal url ->
@@ -458,23 +430,6 @@ update msg model =
 
                 _ ->
                     ( model, Cmd.none )
-
-        SetRotation rotation ->
-            let
-                verticalSegments =
-                    case model.eggData of
-                        Local { renderData } ->
-                            renderData.eggType.verticalSegments
-
-                        Remote { renderData } ->
-                            renderData.eggType.verticalSegments
-
-                        _ ->
-                            0
-            in
-            ( { model | rotation = remainderBy verticalSegments <| rotation + verticalSegments }
-            , Cmd.none
-            )
 
         SetRotating rotating ->
             ( { model | rotating = rotating }
