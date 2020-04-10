@@ -3,6 +3,7 @@ port module Main exposing (main)
 import Array exposing (Array)
 import Browser
 import Browser.Navigation as Nav
+import Brushes exposing (Brush(..), brushPoints)
 import CustomEvents exposing (onClickStopping, onMouseDownWithButton, onMouseEnterWithButtons)
 import Decoders
 import Eggs exposing (EggTypeInfo)
@@ -130,14 +131,6 @@ type EggData
     | Local { localId : Int, renderData : RenderData }
     | Remote { renderData : RenderData, title : String, message : String }
     | NotFound
-
-
-type Brush
-    = B1
-    | B2
-    | B3
-    | B4
-    | B5
 
 
 type SaveState
@@ -293,56 +286,21 @@ currentPalette model =
 paint : Model -> RenderData -> List String -> Int -> Int -> { colors : Array String, palette : List String, histogram : List String, changeId : Int }
 paint model { colors, eggType } palette layerIndex segmentIndex =
     let
-        ( a, r ) =
-            case model.brush of
-                B1 ->
-                    ( 0, 1 )
+        points =
+            brushPoints model.brush
 
-                B2 ->
-                    ( 1, 1 )
+        pointFn ( layerOffset, segmentOffset ) clrs =
+            let
+                actualSegment =
+                    toVisibleSegment eggType model.rotation (segmentIndex + segmentOffset)
 
-                B3 ->
-                    ( 2, 2 )
-
-                B4 ->
-                    ( 3, 2 )
-
-                B5 ->
-                    ( 4, 3 )
-
-        nearSegments =
-            List.range -a a
-
-        nearLayers =
-            List.range -a a
-
-        segmentFn layerOffset segmentOffset clrs =
-            if
-                layerIndex
-                    + layerOffset
-                    >= 0
-                    && layerIndex
-                    + layerOffset
-                    < eggType.layersCount
-                    && (abs layerOffset < r || abs segmentOffset < r)
-            then
-                let
-                    actualSegment =
-                        toVisibleSegment eggType model.rotation (segmentIndex + segmentOffset)
-
-                    actualLayer =
-                        layerIndex + layerOffset
-                in
-                Array.set ((actualLayer * eggType.verticalSegments) + actualSegment) model.currentColor clrs
-
-            else
-                clrs
-
-        layerFn layerOffset clrs =
-            List.foldl (segmentFn layerOffset) clrs nearSegments
+                actualLayer =
+                    layerIndex + layerOffset
+            in
+            Array.set ((actualLayer * eggType.verticalSegments) + actualSegment) model.currentColor clrs
 
         updatedColors =
-            List.foldl layerFn colors nearLayers
+            List.foldl pointFn colors points
 
         step =
             Array.length updatedColors // 10
@@ -1100,22 +1058,43 @@ paletteView currentColor palette =
 brushSelectView : Brush -> String -> Html Msg
 brushSelectView brush color =
     let
-        size =
-            case brush of
-                B1 ->
-                    "2"
+        points =
+            brushPoints brush
 
-                B2 ->
-                    "4"
+        pointSize =
+            3
 
-                B3 ->
-                    "8"
+        pointToRect ( x, y ) =
+            let
+                centerCoeff =
+                    case brush of
+                        B2 ->
+                            toFloat pointSize / 2
 
-                B4 ->
-                    "10"
+                        _ ->
+                            toFloat pointSize / 2
 
-                B5 ->
-                    "12"
+                rectColor =
+                    case ( ( x, y ), List.length points > 1 ) of
+                        ( ( 0, 0 ), True ) ->
+                            adjustColor showColor 0.6
+
+                        _ ->
+                            showColor
+            in
+            Svg.rect
+                [ SAttr.x <| String.fromFloat <| toFloat (x * pointSize) - centerCoeff
+                , SAttr.y <| String.fromFloat <| toFloat (y * pointSize) - centerCoeff
+                , SAttr.width <| String.fromInt pointSize
+                , SAttr.height <| String.fromInt pointSize
+                , fill rectColor
+                , stroke "none"
+                , SAttr.stroke <| adjustColor showColor 0.6
+                ]
+                []
+
+        rectangles =
+            List.map pointToRect points
 
         showColor =
             if String.length color == 7 then
@@ -1123,17 +1102,6 @@ brushSelectView brush color =
 
             else
                 eggColor
-
-        sizeCircle =
-            Svg.circle
-                [ SAttr.cx "0"
-                , SAttr.cy "0"
-                , SAttr.r size
-                , fill showColor
-                , strokeWidth "2"
-                , SAttr.stroke <| adjustColor showColor 0.6
-                ]
-                []
 
         borderCircle =
             Svg.circle
@@ -1155,7 +1123,7 @@ brushSelectView brush color =
             , viewBox "-20 -20 40 40"
             , SAttr.class "brush-select-svg"
             ]
-            [ sizeCircle, borderCircle ]
+            (borderCircle :: rectangles)
         ]
 
 
