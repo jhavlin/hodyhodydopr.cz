@@ -1675,7 +1675,7 @@ viewShare model =
                     , div [ class "share-box share-legal" ]
                         [ p []
                             [ HIcons.questionMarkCircle [ SAttr.class "share-icon" ]
-                            , text "Veškerá data jsou na serveru uložena v zašifrované formě a provozovatel služby je nemůže číst. "
+                            , text "Veškerá data jsou na serveru uložena v\u{00A0}zašifrované formě a provozovatel služby je nemůže číst. "
                             , text "Žádné uživatelské údaje nejsou zpracovávány ani zaznamenávány. "
                             , text "Uložená vajíčka mohou být po Velikonocích smazána. Dostupnost služby není garantována. "
                             , text "Použití služby je na vlastní nebezpečí. "
