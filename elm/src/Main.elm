@@ -918,6 +918,34 @@ adjustColor hexColor coefficient =
     String.concat [ "#", asHex newR, asHex newG, asHex newB ]
 
 
+eggPolygon : Int -> Int -> String -> String -> Int -> Html Msg
+eggPolygon layerIndex segmentIndex polygonPointsStr fillColor verticalSegments =
+    let
+        baseColor =
+            if String.isEmpty fillColor then
+                eggColor
+
+            else
+                fillColor
+
+        color =
+            adjustColor baseColor <| 0.6 + (toFloat segmentIndex / toFloat verticalSegments)
+    in
+    polygon
+        [ points polygonPointsStr
+        , fill color
+        , stroke "#888888"
+        , strokeWidth "0.1"
+        , SAttr.class "egg-area"
+        , attribute "data-layer-index" <| String.fromInt layerIndex
+        , attribute "data-segment-index" <| String.fromInt segmentIndex
+        , onClick <| Paint layerIndex segmentIndex
+        , onMouseDownWithButton <| EggMouseDownInSegment layerIndex segmentIndex
+        , onMouseEnterWithButtons <| EggMouseEnterInSegment layerIndex segmentIndex
+        ]
+        []
+
+
 eggView : Int -> Array String -> EggTypeInfo -> Html Msg
 eggView rotation colors eggType =
     let
@@ -926,32 +954,18 @@ eggView rotation colors eggType =
                 visibleSegment =
                     toVisibleSegment eggType rotation segmentIndex
 
-                fillStr =
+                color =
                     Array.get ((layerIndex * eggType.verticalSegments) + visibleSegment) colors |> Maybe.withDefault ""
 
-                baseColor =
-                    if String.isEmpty fillStr then
-                        eggColor
-
-                    else
-                        fillStr
-
-                color =
-                    adjustColor baseColor <| 0.6 + (toFloat segmentIndex / toFloat eggType.verticalSegments)
+                lazyNode =
+                    Lazy.lazy5 eggPolygon
+                        layerIndex
+                        segmentIndex
+                        polygonPointsStr
+                        color
+                        eggType.verticalSegments
             in
-            polygon
-                [ points polygonPointsStr
-                , fill color
-                , stroke "#888888"
-                , strokeWidth "0.1"
-                , SAttr.class "egg-area"
-                , attribute "data-layer-index" <| String.fromInt layerIndex
-                , attribute "data-segment-index" <| String.fromInt segmentIndex
-                , onClick <| Paint layerIndex segmentIndex
-                , onMouseDownWithButton <| EggMouseDownInSegment layerIndex segmentIndex
-                , onMouseEnterWithButtons <| EggMouseEnterInSegment layerIndex segmentIndex
-                ]
-                []
+            lazyNode
 
         layerToShapes layerIndex pointsList =
             List.indexedMap
@@ -1000,7 +1014,7 @@ rotateBarView egg rotation =
         validRectPositions =
             List.filter (\i -> i.rectWidth > 1) rectPositions
 
-        positionToRect { rectX, rectWidth, fillColor, index } =
+        positionToRect rectX rectWidth fillColor index =
             let
                 visibleSegment =
                     toVisibleSegment egg rotation index
@@ -1022,8 +1036,11 @@ rotateBarView egg rotation =
                 ]
                 []
 
+        positionToRectLazy { rectX, rectWidth, fillColor, index } =
+            Lazy.lazy4 positionToRect rectX rectWidth fillColor index
+
         rects =
-            List.map positionToRect validRectPositions
+            List.map positionToRectLazy validRectPositions
 
         bar =
             svg
