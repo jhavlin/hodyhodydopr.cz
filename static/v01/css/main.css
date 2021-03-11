@@ -276,7 +276,7 @@ svg.paint-mode > .egg-area:hover {
 .resolution-button {
     margin: 0.2rem;
     padding: 0.4rem;
-    width: 12em;
+    width: 13.5em;
     text-align: left;
 }
 
@@ -370,6 +370,7 @@ svg.paint-mode > .egg-area:hover {
 .share-legal {
     background: var(--blue-light);
     margin-top: 3rem;
+    margin-bottom: 3rem;
 }
 .share-legal > p > .share-icon {
     color: var(--blue-dark);

@@ -1458,7 +1458,6 @@ viewInfo _ =
                     , text "Až budete se svým výtvorem spokojeni, klikněte na tlačítko pro sdílení (vpravo), "
                     , text "kraslici uložte, zkopírujte si URL adresu pro prohlížení a pošlete ji koledníkům."
                     ]
-                , p [] [ text "Protože máme přestupný rok, mohou malovat i kluci." ]
                 , p []
                     [ span [ class "larger", style "color" "red" ]
                         [ text "♥" ]
@@ -1643,7 +1642,7 @@ viewShare model =
                         [ p []
                             [ HIcons.lightBulb [ SAttr.class "share-icon" ]
                             , text "Pokud Vám stačí pohled na vajíčko z\u{00A0}jedné strany, můžete jednoduše získat snímek obrazovky "
-                            , text "a rozeslat ho třeba e-mailem či chatovací aplikací nebo zveřejnit na sociálních sítích. "
+                            , text "a rozeslat ho třeba e-mailem nebo zveřejnit na sociálních sítích. "
                             ]
                         , p [ class "smaller" ]
                             [ text "(Nezapomeňte však odstranit případné citlivé údaje, které by se mohly na snímku vyskytovat.)"
